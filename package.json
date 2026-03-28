@@ -2,16 +2,25 @@
   "name": "weconnect",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "socket:dev": "node server/websocket-server.js",
+    "socket:prod": "NODE_ENV=production node server/websocket-server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.100.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "simple-peer": "^9.11.1",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
