@@ -169,12 +169,30 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
   const handleAddTask = async (payload: { title: string; description?: string; priority?: string; due_date?: string }) => {
     if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
     await OrganizationAPI.createTask(selectedOrg, selectedTeam.id, payload);
+    await OrganizationAPI.createActivity(selectedOrg, selectedTeam.id, {
+      activity_type: 'task_created',
+      preview_text: `${profile?.display_name || 'Someone'} created task "${payload.title}"`,
+    }).catch(() => {});
     await loadTeamWorkspace(selectedOrg, selectedTeam.id);
   };
 
   const handleDeleteTask = async (taskId: string) => {
     if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
     await OrganizationAPI.deleteTask(selectedOrg, selectedTeam.id, taskId);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  const handleUpdateTask = async (taskId: string, status: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.updateTask(selectedOrg, selectedTeam.id, taskId, { status });
+    if (status === 'completed') {
+      // find task title from teamData for the activity log
+      const task = (teamData.tasks ?? []).find((t: any) => t.id === taskId);
+      await OrganizationAPI.createActivity(selectedOrg, selectedTeam.id, {
+        activity_type: 'task_updated',
+        preview_text: `${profile?.display_name || 'Someone'} completed task "${task?.title || ''}"`,
+      }).catch(() => {});
+    }
     await loadTeamWorkspace(selectedOrg, selectedTeam.id);
   };
 
@@ -188,6 +206,86 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
   const handleDeleteActivity = async (activityId: string) => {
     if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
     await OrganizationAPI.deleteActivity(selectedOrg, selectedTeam.id, activityId);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  // ── Calendar Events ───────────────────────────────────────────────────────
+  const handleAddCalendarEvent = async (payload: {
+    title: string;
+    description?: string;
+    date: string;
+    start_time: string;
+    end_time?: string;
+    location?: string;
+    attendee_ids?: string[];
+    type?: string;
+  }) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.createCalendarEvent(selectedOrg, selectedTeam.id, payload);
+    await OrganizationAPI.createActivity(selectedOrg, selectedTeam.id, {
+      activity_type: 'meeting_scheduled',
+      preview_text: `${profile?.display_name || 'Someone'} scheduled "${payload.title}" on ${payload.date}`,
+    }).catch(() => {});
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  const handleDeleteCalendarEvent = async (eventId: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.deleteCalendarEvent(selectedOrg, selectedTeam.id, eventId);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  // ── Attendance ────────────────────────────────────────────────────────────
+  const handleClockIn = async () => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.clockIn(selectedOrg, selectedTeam.id);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  const handleClockOut = async () => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.clockOut(selectedOrg, selectedTeam.id);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  // ── Approvals ─────────────────────────────────────────────────────────────
+  const handleRequestApproval = async (payload: {
+    approval_type: string;
+    title: string;
+    description?: string;
+    amount?: string;
+  }) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.createApproval(selectedOrg, selectedTeam.id, payload);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  const handleApproveApproval = async (approvalId: string, note?: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.approveApproval(selectedOrg, selectedTeam.id, approvalId, note);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  const handleRejectApproval = async (approvalId: string, note: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.rejectApproval(selectedOrg, selectedTeam.id, approvalId, note);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  const handleCancelApproval = async (approvalId: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.cancelApproval(selectedOrg, selectedTeam.id, approvalId);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  // ── Praise ────────────────────────────────────────────────────────────────
+  const handleSendPraise = async (payload: {
+    to_user_id: string;
+    badge: string;
+    message?: string;
+  }) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.sendPraise(selectedOrg, selectedTeam.id, payload);
     await loadTeamWorkspace(selectedOrg, selectedTeam.id);
   };
 
@@ -286,6 +384,16 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
                 }}
                 onAddTask={handleAddTask}
                 onDeleteTask={handleDeleteTask}
+                onUpdateTask={handleUpdateTask}
+                onAddCalendarEvent={handleAddCalendarEvent}
+                onDeleteCalendarEvent={handleDeleteCalendarEvent}
+                onClockIn={handleClockIn}
+                onClockOut={handleClockOut}
+                onRequestApproval={handleRequestApproval}
+                onApproveApproval={handleApproveApproval}
+                onRejectApproval={handleRejectApproval}
+                onCancelApproval={handleCancelApproval}
+                onSendPraise={handleSendPraise}
               />
             </div>
             <TeamModals

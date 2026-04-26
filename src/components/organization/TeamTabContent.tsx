@@ -7,10 +7,9 @@ import FilesTab from './tabs/FilesTab';
 import MeetingsTab from './tabs/MeetingsTab';
 import MembersTab from './tabs/MembersTab';
 import PraiseTab from './tabs/PraiseTab';
-import ShiftsTab from './tabs/ShiftsTab';
 import TasksTab from './tabs/TasksTab';
 
-const TeamTabContent = ({ activeTab, teamData, selectedTeam, selectedOrg, teamConversationId, onTeamUpdated, isTeamAdmin, currentUserId, currentUserName, onRemoveTeamMember, onAddActivity, onDeleteActivity, onRefreshWorkspace, onAddTask, onDeleteTask }: any) => {
+const TeamTabContent = ({ activeTab, teamData, selectedTeam, selectedOrg, teamConversationId, onTeamUpdated, isTeamAdmin, currentUserId, currentUserName, onRemoveTeamMember, onAddActivity, onDeleteActivity, onRefreshWorkspace, onAddTask, onDeleteTask, onUpdateTask, onAddCalendarEvent, onDeleteCalendarEvent, onClockIn, onClockOut, onRequestApproval, onApproveApproval, onRejectApproval, onCancelApproval, onSendPraise }: any) => {
   if (activeTab === 'chat')
     return (
       <ChatTab
@@ -53,15 +52,51 @@ const TeamTabContent = ({ activeTab, teamData, selectedTeam, selectedOrg, teamCo
     <TasksTab
       tasks={teamData.tasks}
       teamMembers={(teamData.members ?? []).map((m: any) => ({ id: m.id, name: m.name }))}
+      currentUserId={currentUserId}
+      isAdmin={isTeamAdmin}
       onAdd={onAddTask}
       onDelete={onDeleteTask}
+      onUpdate={onUpdateTask}
     />
   );
-  if (activeTab === 'calendar') return <CalendarTab meetings={teamData.calendar || teamData.meetings} />;
-  if (activeTab === 'attendance') return <AttendanceTab attendance={teamData.attendance} />;
-  if (activeTab === 'approvals') return <ApprovalsTab approvals={teamData.approvals} />;
-  if (activeTab === 'praise') return <PraiseTab praise={teamData.praise} />;
-  if (activeTab === 'shifts') return <ShiftsTab shifts={teamData.shifts} />;
+  if (activeTab === 'calendar') return (
+    <CalendarTab
+      events={teamData.calendar}
+      teamMembers={(teamData.members ?? []).map((m: any) => ({ id: m.id, name: m.name }))}
+      currentUserId={currentUserId}
+      isAdmin={isTeamAdmin}
+      onAdd={onAddCalendarEvent}
+      onDelete={onDeleteCalendarEvent}
+    />
+  );
+  if (activeTab === 'attendance') return (
+    <AttendanceTab
+      attendance={teamData.attendance}
+      currentUserId={currentUserId}
+      isAdmin={isTeamAdmin}
+      onClockIn={onClockIn}
+      onClockOut={onClockOut}
+    />
+  );
+  if (activeTab === 'approvals') return (
+    <ApprovalsTab
+      approvals={teamData.approvals}
+      currentUserId={currentUserId}
+      isAdmin={isTeamAdmin}
+      onRequestApproval={onRequestApproval}
+      onApprove={onApproveApproval}
+      onReject={onRejectApproval}
+      onCancel={onCancelApproval}
+    />
+  );
+  if (activeTab === 'praise') return (
+    <PraiseTab
+      praise={teamData.praise}
+      teamMembers={(teamData.members ?? []).map((m: any) => ({ id: m.id, name: m.name, avatar: m.avatar }))}
+      currentUserId={currentUserId}
+      onSendPraise={onSendPraise}
+    />
+  );
   return null;
 };
 

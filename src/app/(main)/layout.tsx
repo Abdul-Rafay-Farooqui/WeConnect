@@ -1,17 +1,20 @@
 "use client";
 
+import { useState } from "react";
+import { usePathname } from "next/navigation";
 import Sidebar from "@/src/components/layout/Sidebar";
 import AddContactModal from "@/src/components/contacts/AddContactModal";
 import IncomingCallModal from "@/src/components/calls/IncomingCallModal";
 import ForwardMessageModal from "@/src/components/chat/ForwardMessageModal";
 import DeleteMessageModal from "@/src/components/chat/DeleteMessageModal";
 import LockChatModal from "@/src/components/layout/LockChatModal";
+import OrgView from "@/src/components/organization/OrgView";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { MessageCircle, Building2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
-// Agora SDK uses `window` at import time — must be client-only, no SSR
 const CallModal = dynamic(() => import("@/src/components/calls/CallModal"), {
   ssr: false,
 });
@@ -23,9 +26,11 @@ export default function MainLayout({
 }) {
   const { user, profile, isAuthLoaded } = useAuthStore();
   const router = useRouter();
+  const pathname = usePathname();
+  const [mainTab, setMainTab] = useState<'chat' | 'organization'>('chat');
 
   useEffect(() => {
-    if (!isAuthLoaded) return; // Still initializing — don't redirect yet
+    if (!isAuthLoaded) return;
     if (!user) {
       router.push("/auth/login");
     } else if (profile && !profile.onboarding_complete) {
@@ -33,7 +38,6 @@ export default function MainLayout({
     }
   }, [user, profile, isAuthLoaded, router]);
 
-  // Show spinner only during initial auth load, not during transitions
   if (!isAuthLoaded) {
     return (
       <div className="h-screen w-screen bg-[#111b21] flex items-center justify-center">
@@ -45,20 +49,52 @@ export default function MainLayout({
     );
   }
 
-  if (!user) {
-    return null; // Will redirect to login
-  }
+  if (!user) return null;
+  if (profile && !profile.onboarding_complete) return null;
 
-  if (profile && !profile.onboarding_complete) {
-    return null; // Will redirect to onboarding
-  }
+  // Pages that bypass the tab layout (auth, ai-chat, etc.)
+  const isAiChat = pathname === '/ai-chat';
 
   return (
     <div className="h-screen w-screen flex bg-[#0b141a] overflow-hidden">
-      <div className="w-[355px] flex-shrink-0 border-r border-[#222d34]">
-        <Sidebar />
+      {/* Left sidebar — only shown on chat tab */}
+      {mainTab === 'chat' && (
+        <div className="w-[355px] flex-shrink-0 border-r border-[#222d34]">
+          <Sidebar />
+        </div>
+      )}
+
+      {/* Right area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Tab bar */}
+        <div className="flex items-center bg-[#111b21] border-b border-[#222d34] px-4 gap-1 flex-shrink-0">
+          <TabBtn
+            icon={<MessageCircle className="w-4 h-4" />}
+            label="Chat"
+            active={mainTab === 'chat'}
+            onClick={() => setMainTab('chat')}
+          />
+          <TabBtn
+            icon={<Building2 className="w-4 h-4" />}
+            label="Organization"
+            active={mainTab === 'organization'}
+            onClick={() => setMainTab('organization')}
+          />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-hidden relative">
+          {mainTab === 'chat' && (
+            <main className="h-full w-full">{children}</main>
+          )}
+          {mainTab === 'organization' && (
+            <div className="h-full w-full">
+              <OrgView />
+            </div>
+          )}
+        </div>
       </div>
-      <main className="flex-1 relative overflow-hidden">{children}</main>
+
       <AddContactModal />
       <CallModal />
       <IncomingCallModal />
@@ -66,5 +102,25 @@ export default function MainLayout({
       <DeleteMessageModal />
       <LockChatModal />
     </div>
+  );
+}
+
+function TabBtn({
+  icon, label, active, onClick,
+}: {
+  icon: React.ReactNode; label: string; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+        active
+          ? 'text-[#00a884] border-[#00a884]'
+          : 'text-[#8696a0] border-transparent hover:text-[#e9edef]'
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

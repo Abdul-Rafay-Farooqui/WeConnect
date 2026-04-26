@@ -17,7 +17,6 @@ export const TEAM_TABS = [
   'attendance',
   'approvals',
   'praise',
-  'shifts',
 ];
 
 export const teamData = {
@@ -30,5 +29,4 @@ export const teamData = {
   activity: [],
   approvals: [],
   praise: [],
-  shifts: [],
 };

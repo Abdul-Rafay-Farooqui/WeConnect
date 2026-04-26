@@ -26,7 +26,6 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const isAiActive = pathname === '/ai-chat';
-  const isOrganizationActive = pathname.startsWith('/organization');
 
   return (
     <div className="flex flex-col h-full bg-[#111b21]">
@@ -46,52 +45,31 @@ export default function Sidebar() {
           icon={<MessageCircle className="w-5 h-5" />}
           label="Chats"
           active={!isAiActive && tab === 'chats'}
-          onClick={() => {
-            setTab('chats');
-            router.push('/');
-          }}
+          onClick={() => { setTab('chats'); router.push('/'); }}
         />
         <NavBtn
           icon={<CircleDashed className="w-5 h-5" />}
           label="Status"
           active={!isAiActive && tab === 'status'}
-          onClick={() => {
-            setTab('status');
-            router.push('/');
-          }}
+          onClick={() => { setTab('status'); router.push('/'); }}
         />
         <NavBtn
           icon={<Users className="w-5 h-5" />}
           label="Groups"
           active={!isAiActive && tab === 'groups'}
-          onClick={() => {
-            setTab('groups');
-            router.push('/');
-          }}
+          onClick={() => { setTab('groups'); router.push('/'); }}
         />
         <NavBtn
           icon={<UsersRound className="w-5 h-5" />}
           label="Community"
-          active={!isAiActive && !isOrganizationActive && tab === 'communities'}
-          onClick={() => {
-            setTab('communities');
-            router.push('/');
-          }}
-        />
-        <NavBtn
-          icon={<Building2 className="w-5 h-5" />}
-          label="Org"
-          active={isOrganizationActive}
-          onClick={() => router.push('/organization')}
+          active={!isAiActive && tab === 'communities'}
+          onClick={() => { setTab('communities'); router.push('/'); }}
         />
         <NavBtn
           icon={<Phone className="w-5 h-5" />}
           label="Calls"
           active={!isAiActive && tab === 'calls'}
-          onClick={() => {
-            setTab('calls');
-            router.push('/');
-          }}
+          onClick={() => { setTab('calls'); router.push('/'); }}
         />
         <NavBtn
           icon={<Bot className="w-5 h-5" />}
@@ -105,15 +83,9 @@ export default function Sidebar() {
 }
 
 function NavBtn({
-  icon,
-  label,
-  active,
-  onClick,
+  icon, label, active, onClick,
 }: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
+  icon: React.ReactNode; label: string; active: boolean; onClick: () => void;
 }) {
   return (
     <button
