@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useParams } from 'next/navigation';
-import CommunityView from '@/components/communities/CommunityView';
+import { useParams } from "next/navigation";
+import CommunityView from "@/src/components/communities/CommunityView";
 
 export default function CommunityPage() {
   const params = useParams();

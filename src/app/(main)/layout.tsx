@@ -1,29 +1,35 @@
-'use client';
+"use client";
 
-import Sidebar from '@/components/layout/Sidebar';
-import AddContactModal from '@/components/contacts/AddContactModal';
-import IncomingCallModal from '@/components/calls/IncomingCallModal';
-import ForwardMessageModal from '@/components/chat/ForwardMessageModal';
-import DeleteMessageModal from '@/components/chat/DeleteMessageModal';
-import LockChatModal from '@/components/layout/LockChatModal';
-import { useAuthStore } from '@/store/authStore';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import Sidebar from "@/src/components/layout/Sidebar";
+import AddContactModal from "@/src/components/contacts/AddContactModal";
+import IncomingCallModal from "@/src/components/calls/IncomingCallModal";
+import ForwardMessageModal from "@/src/components/chat/ForwardMessageModal";
+import DeleteMessageModal from "@/src/components/chat/DeleteMessageModal";
+import LockChatModal from "@/src/components/layout/LockChatModal";
+import { useAuthStore } from "@/store/authStore";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import dynamic from "next/dynamic";
 
 // Agora SDK uses `window` at import time — must be client-only, no SSR
-const CallModal = dynamic(() => import('@/components/calls/CallModal'), { ssr: false });
+const CallModal = dynamic(() => import("@/src/components/calls/CallModal"), {
+  ssr: false,
+});
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+export default function MainLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user, profile, isAuthLoaded } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
     if (!isAuthLoaded) return; // Still initializing — don't redirect yet
     if (!user) {
-      router.push('/auth/login');
+      router.push("/auth/login");
     } else if (profile && !profile.onboarding_complete) {
-      router.push('/auth/onboarding');
+      router.push("/auth/onboarding");
     }
   }, [user, profile, isAuthLoaded, router]);
 
@@ -52,9 +58,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <div className="w-[355px] flex-shrink-0 border-r border-[#222d34]">
         <Sidebar />
       </div>
-      <main className="flex-1 relative overflow-hidden">
-        {children}
-      </main>
+      <main className="flex-1 relative overflow-hidden">{children}</main>
       <AddContactModal />
       <CallModal />
       <IncomingCallModal />

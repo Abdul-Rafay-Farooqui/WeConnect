@@ -9,6 +9,7 @@ import {
   CircleDashed,
   Users,
   UsersRound,
+  Building2,
 } from 'lucide-react';
 import SidebarHeader from './SidebarHeader';
 import ChatsPanel from './panels/ChatsPanel';
@@ -25,6 +26,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const isAiActive = pathname === '/ai-chat';
+  const isOrganizationActive = pathname.startsWith('/organization');
 
   return (
     <div className="flex flex-col h-full bg-[#111b21]">
@@ -70,11 +72,17 @@ export default function Sidebar() {
         <NavBtn
           icon={<UsersRound className="w-5 h-5" />}
           label="Community"
-          active={!isAiActive && tab === 'communities'}
+          active={!isAiActive && !isOrganizationActive && tab === 'communities'}
           onClick={() => {
             setTab('communities');
             router.push('/');
           }}
+        />
+        <NavBtn
+          icon={<Building2 className="w-5 h-5" />}
+          label="Org"
+          active={isOrganizationActive}
+          onClick={() => router.push('/organization')}
         />
         <NavBtn
           icon={<Phone className="w-5 h-5" />}
