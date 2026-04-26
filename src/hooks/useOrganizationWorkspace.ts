@@ -7,9 +7,11 @@ import { teamData as defaultTeamData } from '@/src/components/organization/const
 export function useOrganizationWorkspace() {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [orgTeamsById, setOrgTeamsById] = useState<Record<string, any[]>>({});
+  const [orgMembersById, setOrgMembersById] = useState<Record<string, any[]>>({});
   const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<any>(null);
   const [teamData, setTeamData] = useState<any>(defaultTeamData);
+  const [teamConversationId, setTeamConversationId] = useState<string | null>(null);
   const [isOrgsLoading, setIsOrgsLoading] = useState(true);
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,7 +36,9 @@ export function useOrganizationWorkspace() {
       setError('');
       const data = await OrganizationAPI.getOrganization(organizationId);
       const teams = Array.isArray(data?.teams) ? data.teams : [];
+      const members = Array.isArray(data?.members) ? data.members : [];
       setOrgTeamsById((prev) => ({ ...prev, [organizationId]: teams }));
+      setOrgMembersById((prev) => ({ ...prev, [organizationId]: members }));
     } catch (err: any) {
       setError(err?.message || 'Unable to load teams');
     }
@@ -47,12 +51,15 @@ export function useOrganizationWorkspace() {
       setError('');
       const data = await OrganizationAPI.getTeamWorkspace(organizationId, teamId);
       setTeamData({ ...defaultTeamData, ...(data?.tabs || {}) });
+      setTeamConversationId(data?.chat_conversation_id ?? null);
     } catch (err: any) {
       setError(err?.message || 'Unable to load team workspace');
       setTeamData(defaultTeamData);
+      setTeamConversationId(null);
     } finally {
       setIsWorkspaceLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -75,8 +82,9 @@ export function useOrganizationWorkspace() {
         ...org,
         icon: org.icon || '🏢',
         teams: orgTeamsById[org.id] || [],
+        members: orgMembersById[org.id] || [],
       })),
-    [organizations, orgTeamsById],
+    [organizations, orgTeamsById, orgMembersById],
   );
 
   return {
@@ -86,6 +94,7 @@ export function useOrganizationWorkspace() {
     selectedTeam,
     setSelectedTeam,
     teamData,
+    teamConversationId,
     isOrgsLoading,
     isWorkspaceLoading,
     error,

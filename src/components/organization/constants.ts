@@ -8,6 +8,7 @@ export const PRESENCE_MAP: Record<string, string> = {
 
 export const TEAM_TABS = [
   'chat',
+  'members',
   'activity',
   'files',
   'meetings',
@@ -21,6 +22,7 @@ export const TEAM_TABS = [
 
 export const teamData = {
   chat: [],
+  members: [],
   files: [],
   meetings: [],
   attendance: [],

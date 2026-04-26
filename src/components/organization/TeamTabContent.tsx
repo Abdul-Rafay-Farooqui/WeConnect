@@ -5,12 +5,30 @@ import CalendarTab from './tabs/CalendarTab';
 import ChatTab from './tabs/ChatTab';
 import FilesTab from './tabs/FilesTab';
 import MeetingsTab from './tabs/MeetingsTab';
+import MembersTab from './tabs/MembersTab';
 import PraiseTab from './tabs/PraiseTab';
 import ShiftsTab from './tabs/ShiftsTab';
 import TasksTab from './tabs/TasksTab';
 
-const TeamTabContent = ({ activeTab, teamData }: any) => {
-  if (activeTab === 'chat') return <ChatTab chat={teamData.chat} />;
+const TeamTabContent = ({ activeTab, teamData, selectedTeam, selectedOrg, teamConversationId, onTeamUpdated, isTeamAdmin, currentUserId, onRemoveTeamMember }: any) => {
+  if (activeTab === 'chat')
+    return (
+      <ChatTab
+        selectedTeam={selectedTeam}
+        selectedOrg={selectedOrg}
+        teamConversationId={teamConversationId}
+        onTeamUpdated={onTeamUpdated}
+      />
+    );
+  if (activeTab === 'members')
+    return (
+      <MembersTab
+        members={teamData.members}
+        isAdmin={isTeamAdmin}
+        currentUserId={currentUserId}
+        onRemove={onRemoveTeamMember}
+      />
+    );
   if (activeTab === 'activity') return <ActivityTab activity={teamData.activity} />;
   if (activeTab === 'files') return <FilesTab files={teamData.files} />;
   if (activeTab === 'meetings') return <MeetingsTab meetings={teamData.meetings} />;

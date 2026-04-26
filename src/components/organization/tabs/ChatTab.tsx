@@ -1,22 +1,38 @@
-const ChatTab = ({ chat = [] as any[] }) => {
-  if (!chat.length) {
-    return <p className="text-[#8696a0] text-sm">No team chat messages yet.</p>;
+'use client';
+
+import { Loader2, MessageSquare } from 'lucide-react';
+import ChatWindow from '@/src/components/chat/ChatWindow';
+
+interface ChatTabProps {
+  teamConversationId?: string | null;
+  selectedTeam?: any;
+}
+
+const ChatTab = ({ teamConversationId, selectedTeam }: ChatTabProps) => {
+  if (teamConversationId) {
+    return (
+      <div className="h-full overflow-hidden">
+        <ChatWindow conversationId={teamConversationId} />
+      </div>
+    );
+  }
+
+  // Workspace still loading
+  if (!selectedTeam) {
+    return (
+      <div className="flex items-center justify-center h-64 gap-2 text-[#8696a0]">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span className="text-sm">Loading chat…</span>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-3">
-      {chat.map((item: any) => (
-        <div key={item.id} className="bg-[#111b21] border border-[#222d34] rounded-lg p-3">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[#e9edef] text-sm font-medium">{item.sender || 'Unknown'}</p>
-            <p className="text-[#8696a0] text-xs">{item.time || '-'}</p>
-          </div>
-          <p className="text-[#cfd4d7] text-sm">{item.message || ''}</p>
-          {!!item.reactions?.length && (
-            <p className="text-xs text-[#8696a0] mt-2">{item.reactions.join(' ')}</p>
-          )}
-        </div>
-      ))}
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <div className="w-16 h-16 rounded-full bg-[#1e2a30] flex items-center justify-center">
+        <MessageSquare className="w-8 h-8 text-[#8696a0]" />
+      </div>
+      <p className="text-[#8696a0] text-sm">No chat available for this team yet.</p>
     </div>
   );
 };

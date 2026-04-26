@@ -22,9 +22,7 @@ export default function OrganizationPage() {
     <div className="h-full w-full">
       <OrgView
         presence={presence}
-        setPresence={setPresence}
         presenceOptions={PRESENCE_OPTIONS}
-        currentPresenceOption={currentPresenceOption}
       />
     </div>
   );

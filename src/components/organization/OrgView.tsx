@@ -2,8 +2,17 @@
 
 import { useState } from 'react';
 import { OrganizationAPI } from '@/lib/api/organization';
+import { useAuthStore } from '@/store/authStore';
 import { useOrganizationWorkspace } from '@/src/hooks/useOrganizationWorkspace';
 import EmptyTeamState from './EmptyTeamState';
+import {
+  AddOrgMembersModal,
+  AddTeamMembersModal,
+  CreateOrgModal,
+  CreateTeamModal,
+  DeleteOrgModal,
+  DeleteTeamModal,
+} from './OrgModals';
 import OrganizationSidebar from './OrganizationSidebar';
 import TeamModals from './TeamModals';
 import TeamTabContent from './TeamTabContent';
@@ -11,13 +20,9 @@ import TeamWorkspaceHeader from './TeamWorkspaceHeader';
 import WorkspaceCommandBar from './WorkspaceCommandBar';
 import { teamData as defaultTeamData } from './constants';
 
-const parseIds = (value: string) =>
-  (value || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-
 const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
+  const currentUser = useAuthStore((s) => s.user);
+
   const {
     organizationsWithTeams,
     selectedOrg,
@@ -25,12 +30,14 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
     selectedTeam,
     setSelectedTeam,
     teamData,
+    teamConversationId,
     isOrgsLoading,
     isWorkspaceLoading,
     error,
     setError,
     loadOrganizations,
     loadOrganizationTeams,
+    loadTeamWorkspace,
     setTeamData,
   } = useOrganizationWorkspace();
 
@@ -39,6 +46,52 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [commandBarQuery, setCommandBarQuery] = useState('');
 
+  // ── Modal visibility ──────────────────────────────────────────────────────
+  const [showCreateOrg, setShowCreateOrg] = useState(false);
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [showAddOrgMembers, setShowAddOrgMembers] = useState(false);
+  const [showAddTeamMembers, setShowAddTeamMembers] = useState(false);
+  const [showDeleteTeam, setShowDeleteTeam] = useState(false);
+  const [showDeleteOrg, setShowDeleteOrg] = useState(false);
+
+  // ── Derived helpers ───────────────────────────────────────────────────────
+  const selectedOrgObj = organizationsWithTeams.find((o) => o.id === selectedOrg) ?? null;
+
+  /** Current user's id — handle various field names the backend may use */
+  const uid: string | undefined = currentUser?.id ?? currentUser?.uid ?? currentUser?.userId;
+
+  /**
+   * True if the current user is the admin/creator of the SELECTED ORGANIZATION.
+   * We check created_by, owner_id, admin_id at the org level.
+   * Fallback: if uid is set and no creator info exists, we assume they are admin
+   * (since they can only see orgs they belong to).
+   */
+  const isOrgAdmin = (() => {
+    if (!uid || !selectedOrgObj) return false;
+    const o = selectedOrgObj as any;
+    if (o.created_by) return o.created_by === uid;
+    if (o.owner_id) return o.owner_id === uid;
+    if (o.admin_id) return o.admin_id === uid;
+    // No creator field → grant delete to all for now (backend will enforce)
+    return true;
+  })();
+
+  /**
+   * True if the current user is the admin/creator of the SELECTED TEAM.
+   * selectedTeam stores the full team object from the sidebar.
+   */
+  const isTeamAdmin = (() => {
+    if (!uid || !selectedTeam) return false;
+    const t = selectedTeam as any;
+    if (t.created_by) return t.created_by === uid;
+    if (t.owner_id) return t.owner_id === uid;
+    if (t.admin_id) return t.admin_id === uid;
+    if (t.creator_id) return t.creator_id === uid;
+    // No creator field on team → fall back to org-admin check
+    return isOrgAdmin;
+  })();
+
+  // ── Org selection ─────────────────────────────────────────────────────────
   const handleSelectOrg = (organizationId: string | null) => {
     if (selectedOrg === organizationId) {
       setSelectedOrg(null);
@@ -51,69 +104,83 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
     setTeamData(defaultTeamData);
   };
 
-  const handleCreateOrganization = async () => {
-    const name = window.prompt('Organization name');
-    if (!name?.trim()) return;
-    const slug = window.prompt('Slug (optional)', '') || '';
-    try {
-      setError('');
-      const created = await OrganizationAPI.createOrganization({
-        name: name.trim(),
-        ...(slug.trim() ? { slug: slug.trim() } : {}),
-      });
-      await loadOrganizations();
-      if (created?.id) {
-        setSelectedOrg(created.id);
-        await loadOrganizationTeams(created.id, true);
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Unable to create organization');
+  // ── Create Organization ───────────────────────────────────────────────────
+  const handleCreateOrganization = async (name: string, slug: string) => {
+    setError('');
+    const created = await OrganizationAPI.createOrganization({
+      name,
+      ...(slug ? { slug } : {}),
+    });
+    await loadOrganizations();
+    if (created?.id) {
+      setSelectedOrg(created.id);
+      await loadOrganizationTeams(created.id, true);
     }
   };
 
-  const handleCreateTeam = async () => {
-    if (!selectedOrg) return setError('Select an organization first');
-    const name = window.prompt('Team name');
-    if (!name?.trim()) return;
-    const raw = window.prompt('Team member user IDs (comma separated)', '') || '';
-    try {
-      setError('');
-      const created = await OrganizationAPI.createTeam(selectedOrg, {
-        name: name.trim(),
-        member_ids: parseIds(raw),
-      });
-      await loadOrganizationTeams(selectedOrg, true);
-      if (created?.id) setSelectedTeam({ id: created.id, name: created.name || name.trim() });
-    } catch (err: any) {
-      setError(err?.message || 'Unable to create team');
-    }
+  // ── Delete Organization ───────────────────────────────────────────────────
+  const handleDeleteOrganization = async () => {
+    if (!selectedOrg) throw new Error('No organization selected');
+    setError('');
+    await OrganizationAPI.deleteOrganization(selectedOrg);
+    await loadOrganizations();
+    setSelectedOrg(null);
+    setSelectedTeam(null);
+    setTeamData(defaultTeamData);
   };
 
-  const handleAddOrgMembers = async () => {
-    if (!selectedOrg) return setError('Select an organization first');
-    const raw = window.prompt('Organization member user IDs (comma separated)', '') || '';
-    const member_ids = parseIds(raw);
-    if (!member_ids.length) return;
-    try {
-      setError('');
-      await OrganizationAPI.addOrganizationMembers(selectedOrg, member_ids);
-      await loadOrganizationTeams(selectedOrg, true);
-    } catch (err: any) {
-      setError(err?.message || 'Unable to add organization members');
-    }
+  // ── Create Team ───────────────────────────────────────────────────────────
+  const handleCreateTeam = async (name: string, memberIds: string[]) => {
+    if (!selectedOrg) throw new Error('Select an organization first');
+    setError('');
+    const created = await OrganizationAPI.createTeam(selectedOrg, { name, member_ids: memberIds });
+    await loadOrganizationTeams(selectedOrg, true);
+    if (created?.id) setSelectedTeam({ ...created, id: created.id, name: created.name || name });
   };
 
-  const handleAddTeamMembers = async () => {
-    if (!selectedOrg || !selectedTeam?.id) return setError('Select a team first');
-    const raw = window.prompt('Team member user IDs (comma separated)', '') || '';
-    const member_ids = parseIds(raw);
-    if (!member_ids.length) return;
-    try {
-      setError('');
-      await OrganizationAPI.addTeamMembers(selectedOrg, selectedTeam.id, member_ids);
-    } catch (err: any) {
-      setError(err?.message || 'Unable to add team members');
+  // ── Delete Team ───────────────────────────────────────────────────────────
+  const handleDeleteTeam = async () => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    setError('');
+    await OrganizationAPI.deleteTeam(selectedOrg, selectedTeam.id);
+    await loadOrganizationTeams(selectedOrg, true);
+    setSelectedTeam(null);
+    setTeamData(defaultTeamData);
+  };
+
+  // ── Remove Org Member ─────────────────────────────────────────────────────
+  const handleRemoveOrgMember = async (userId: string) => {
+    if (!selectedOrg) throw new Error('No organization selected');
+    setError('');
+    await OrganizationAPI.removeOrgMember(selectedOrg, userId);
+    await loadOrganizationTeams(selectedOrg, true);
+  };
+
+  // ── Add Org Members ───────────────────────────────────────────────────────
+  const handleAddOrgMembers = async (memberIds: string[]) => {
+    if (!selectedOrg) throw new Error('Select an organization first');
+    setError('');
+    await OrganizationAPI.addOrganizationMembers(selectedOrg, memberIds);
+    await loadOrganizationTeams(selectedOrg, true);
+  };
+
+  // ── Remove Team Member ────────────────────────────────────────────────────
+  const handleRemoveTeamMember = async (memberId: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    setError('');
+    await OrganizationAPI.removeTeamMember(selectedOrg, selectedTeam.id, memberId);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+  const handleAddTeamMembers = async (memberIds: string[]) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('Select a team first');
+    setError('');
+    const result = await OrganizationAPI.addTeamMembers(selectedOrg, selectedTeam.id, memberIds);
+    if (result?.added === 0) {
+      throw new Error('These users are not members of this organization. Add them to the org first.');
     }
+    // Refresh workspace so members tab updates immediately
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+    setActiveTab('members');
   };
 
   return (
@@ -127,12 +194,30 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
         isLoading={isOrgsLoading}
         error={error}
         onRetry={loadOrganizations}
-        onCreateOrganization={handleCreateOrganization}
-        onCreateTeam={handleCreateTeam}
-        onAddOrgMembers={handleAddOrgMembers}
+        onCreateOrganization={() => setShowCreateOrg(true)}
+        onCreateTeam={() => {
+          if (!selectedOrg) { setError('Select an organization first'); return; }
+          setShowCreateTeam(true);
+        }}
+        onAddOrgMembers={() => {
+          if (!selectedOrg) { setError('Select an organization first'); return; }
+          setShowAddOrgMembers(true);
+        }}
+        onDeleteOrg={() => setShowDeleteOrg(true)}
+        onAddTeamMembers={(team: any) => {
+          setSelectedTeam(team);
+          setShowAddTeamMembers(true);
+        }}
+        isOrgAdmin={isOrgAdmin}
       />
+
       <div className="flex-1 flex flex-col bg-[#0b141a]">
-        {error && <div className="m-4 p-3 rounded border border-red-500/40 bg-red-500/10 text-red-200 text-sm">{error}</div>}
+        {error && (
+          <div className="m-4 p-3 rounded border border-red-500/40 bg-red-500/10 text-red-200 text-sm">
+            {error}
+          </div>
+        )}
+
         {selectedTeam ? (
           <>
             <WorkspaceCommandBar
@@ -146,12 +231,26 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               setShowMeetingModal={setShowMeetingModal}
-              onCreateTeam={handleCreateTeam}
-              onAddTeamMembers={handleAddTeamMembers}
+              onCreateTeam={() => setShowCreateTeam(true)}
+              onAddTeamMembers={() => setShowAddTeamMembers(true)}
+              onDeleteTeam={isTeamAdmin ? () => setShowDeleteTeam(true) : undefined}
+              isTeamAdmin={isTeamAdmin}
             />
             <div className="flex-1 overflow-auto custom-scrollbar p-6">
-              {isWorkspaceLoading && <p className="text-[#8696a0] text-sm mb-2">Loading workspace...</p>}
-              <TeamTabContent activeTab={activeTab} teamData={teamData} />
+              {isWorkspaceLoading && (
+                <p className="text-[#8696a0] text-sm mb-2">Loading workspace…</p>
+              )}
+              <TeamTabContent
+                activeTab={activeTab}
+                teamData={teamData}
+                selectedTeam={selectedTeam}
+                selectedOrg={selectedOrg}
+                teamConversationId={teamConversationId}
+                onTeamUpdated={(updated: any) => setSelectedTeam(updated)}
+                isTeamAdmin={isTeamAdmin}
+                currentUserId={uid}
+                onRemoveTeamMember={handleRemoveTeamMember}
+              />
             </div>
             <TeamModals
               showMeetingModal={showMeetingModal}
@@ -161,9 +260,58 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
             />
           </>
         ) : (
-          <EmptyTeamState />
+          <EmptyTeamState
+            orgName={selectedOrgObj?.name}
+            orgMembers={selectedOrgObj?.members ?? []}
+            isOrgAdmin={isOrgAdmin}
+            currentUserId={uid}
+            onAddMembers={() => {
+              if (!selectedOrg) return;
+              setShowAddOrgMembers(true);
+            }}
+            onRemoveMember={handleRemoveOrgMember}
+          />
         )}
       </div>
+
+      {/* ── Modals ──────────────────────────────────────────────────────── */}
+      <CreateOrgModal
+        open={showCreateOrg}
+        onClose={() => setShowCreateOrg(false)}
+        onSubmit={handleCreateOrganization}
+      />
+      <DeleteOrgModal
+        open={showDeleteOrg}
+        onClose={() => setShowDeleteOrg(false)}
+        onConfirm={handleDeleteOrganization}
+        orgName={selectedOrgObj?.name}
+      />
+      <CreateTeamModal
+        open={showCreateTeam}
+        onClose={() => setShowCreateTeam(false)}
+        onSubmit={handleCreateTeam}
+        orgName={selectedOrgObj?.name}
+      />
+      <DeleteTeamModal
+        open={showDeleteTeam}
+        onClose={() => setShowDeleteTeam(false)}
+        onConfirm={handleDeleteTeam}
+        teamName={selectedTeam?.name}
+      />
+      <AddOrgMembersModal
+        open={showAddOrgMembers}
+        onClose={() => setShowAddOrgMembers(false)}
+        onSubmit={handleAddOrgMembers}
+        orgName={selectedOrgObj?.name}
+      />
+      <AddTeamMembersModal
+        open={showAddTeamMembers}
+        onClose={() => setShowAddTeamMembers(false)}
+        onSubmit={handleAddTeamMembers}
+        teamName={selectedTeam?.name}
+        orgMembers={selectedOrgObj?.members ?? []}
+        existingMemberIds={(teamData.members ?? []).map((m: any) => m.id)}
+      />
     </div>
   );
 };
