@@ -10,7 +10,7 @@ import PraiseTab from './tabs/PraiseTab';
 import ShiftsTab from './tabs/ShiftsTab';
 import TasksTab from './tabs/TasksTab';
 
-const TeamTabContent = ({ activeTab, teamData, selectedTeam, selectedOrg, teamConversationId, onTeamUpdated, isTeamAdmin, currentUserId, onRemoveTeamMember }: any) => {
+const TeamTabContent = ({ activeTab, teamData, selectedTeam, selectedOrg, teamConversationId, onTeamUpdated, isTeamAdmin, currentUserId, currentUserName, onRemoveTeamMember, onAddActivity, onDeleteActivity, onRefreshWorkspace, onAddTask, onDeleteTask }: any) => {
   if (activeTab === 'chat')
     return (
       <ChatTab
@@ -29,10 +29,34 @@ const TeamTabContent = ({ activeTab, teamData, selectedTeam, selectedOrg, teamCo
         onRemove={onRemoveTeamMember}
       />
     );
-  if (activeTab === 'activity') return <ActivityTab activity={teamData.activity} />;
-  if (activeTab === 'files') return <FilesTab files={teamData.files} />;
+  if (activeTab === 'activity') return (
+    <ActivityTab
+      activity={teamData.activity}
+      isAdmin={isTeamAdmin}
+      onAdd={onAddActivity}
+      onDelete={onDeleteActivity}
+    />
+  );
+  if (activeTab === 'files') return (
+    <FilesTab
+      files={teamData.files}
+      conversationId={teamConversationId}
+      currentUserId={currentUserId}
+      currentUserName={currentUserName}
+      isAdmin={isTeamAdmin}
+      onRefresh={onRefreshWorkspace}
+      onAddActivity={onAddActivity}
+    />
+  );
   if (activeTab === 'meetings') return <MeetingsTab meetings={teamData.meetings} />;
-  if (activeTab === 'tasks') return <TasksTab tasks={teamData.tasks} />;
+  if (activeTab === 'tasks') return (
+    <TasksTab
+      tasks={teamData.tasks}
+      teamMembers={(teamData.members ?? []).map((m: any) => ({ id: m.id, name: m.name }))}
+      onAdd={onAddTask}
+      onDelete={onDeleteTask}
+    />
+  );
   if (activeTab === 'calendar') return <CalendarTab meetings={teamData.calendar || teamData.meetings} />;
   if (activeTab === 'attendance') return <AttendanceTab attendance={teamData.attendance} />;
   if (activeTab === 'approvals') return <ApprovalsTab approvals={teamData.approvals} />;

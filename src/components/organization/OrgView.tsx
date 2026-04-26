@@ -22,6 +22,7 @@ import { teamData as defaultTeamData } from './constants';
 
 const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
   const currentUser = useAuthStore((s) => s.user);
+  const profile = useAuthStore((s) => s.profile);
 
   const {
     organizationsWithTeams,
@@ -164,6 +165,32 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
     await loadOrganizationTeams(selectedOrg, true);
   };
 
+  // ── Tasks ─────────────────────────────────────────────────────────────────
+  const handleAddTask = async (payload: { title: string; description?: string; priority?: string; due_date?: string }) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.createTask(selectedOrg, selectedTeam.id, payload);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.deleteTask(selectedOrg, selectedTeam.id, taskId);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  // ── Activity ──────────────────────────────────────────────────────────────
+  const handleAddActivity = async (payload: { activity_type: string; preview_text?: string }) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.createActivity(selectedOrg, selectedTeam.id, payload);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
+  const handleDeleteActivity = async (activityId: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
+    await OrganizationAPI.deleteActivity(selectedOrg, selectedTeam.id, activityId);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
   // ── Remove Team Member ────────────────────────────────────────────────────
   const handleRemoveTeamMember = async (memberId: string) => {
     if (!selectedOrg || !selectedTeam?.id) throw new Error('No team selected');
@@ -249,7 +276,16 @@ const OrgView = ({ presence = 'available', presenceOptions = [] as any[] }) => {
                 onTeamUpdated={(updated: any) => setSelectedTeam(updated)}
                 isTeamAdmin={isTeamAdmin}
                 currentUserId={uid}
+                currentUserName={profile?.display_name ?? currentUser?.display_name ?? 'Someone'}
                 onRemoveTeamMember={handleRemoveTeamMember}
+                onAddActivity={handleAddActivity}
+                onDeleteActivity={handleDeleteActivity}
+                onRefreshWorkspace={async () => {
+                  if (selectedOrg && selectedTeam?.id)
+                    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+                }}
+                onAddTask={handleAddTask}
+                onDeleteTask={handleDeleteTask}
               />
             </div>
             <TeamModals

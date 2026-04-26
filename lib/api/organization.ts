@@ -38,6 +38,22 @@ export const OrganizationAPI = {
     api
       .delete(`/organizations/${organizationId}/members/${memberId}`)
       .then((r) => r.data),
+  createActivity: (organizationId: string, teamId: string, payload: { activity_type: string; preview_text?: string }) =>
+    api
+      .post(`/organizations/${organizationId}/teams/${teamId}/activities`, payload)
+      .then((r) => r.data),
+  deleteActivity: (organizationId: string, teamId: string, activityId: string) =>
+    api
+      .delete(`/organizations/${organizationId}/teams/${teamId}/activities/${activityId}`)
+      .then((r) => r.data),
+  createTask: (organizationId: string, teamId: string, payload: { title: string; description?: string; assignee_id?: string; priority?: string; due_date?: string }) =>
+    api
+      .post(`/organizations/${organizationId}/teams/${teamId}/tasks`, payload)
+      .then((r) => r.data),
+  deleteTask: (organizationId: string, teamId: string, taskId: string) =>
+    api
+      .delete(`/organizations/${organizationId}/teams/${teamId}/tasks/${taskId}`)
+      .then((r) => r.data),
   getTeamWorkspace: (organizationId: string, teamId: string) =>
     api
       .get(`/organizations/${organizationId}/teams/${teamId}/workspace`)
