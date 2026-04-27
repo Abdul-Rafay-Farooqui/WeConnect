@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Clock, Users, MapPin, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Clock, Users, MapPin, Calendar, Video } from 'lucide-react';
 
 interface CalendarEvent {
   id: string;
@@ -14,10 +14,14 @@ interface CalendarEvent {
   attendees?: string[];
   created_by?: string;
   type?: 'meeting' | 'event' | 'reminder' | 'deadline';
+  meeting_id?: string;
+  is_meeting?: boolean;
+  meeting_status?: 'scheduled' | 'ongoing' | 'ended';
 }
 
 interface CalendarTabProps {
   events?: CalendarEvent[];
+  meetings?: any[];
   teamMembers?: { id: string; name: string }[];
   currentUserId?: string;
   isAdmin?: boolean;
@@ -32,6 +36,7 @@ interface CalendarTabProps {
     type?: string;
   }) => Promise<void>;
   onDelete?: (eventId: string) => Promise<void>;
+  onJoinMeeting?: (meetingId: string) => void;
 }
 
 const MONTHS = [
@@ -50,11 +55,13 @@ const EVENT_TYPES = [
 
 const CalendarTab = ({
   events = [],
+  meetings = [],
   teamMembers = [],
   currentUserId,
   isAdmin,
   onAdd,
   onDelete,
+  onJoinMeeting,
 }: CalendarTabProps) => {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
@@ -82,6 +89,42 @@ const CalendarTab = ({
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
     </svg>
   );
+
+  // Combine events and meetings for calendar display
+  const allCalendarItems = useMemo(() => {
+    const items = [...events];
+    
+    // Add meetings as calendar events
+    meetings.forEach((meeting) => {
+      if (meeting.starts_at) {
+        const startDate = new Date(meeting.starts_at);
+        const dateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+        const startTime = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
+        
+        let endTime;
+        if (meeting.ends_at) {
+          const endDate = new Date(meeting.ends_at);
+          endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+        }
+        
+        items.push({
+          id: `meeting-${meeting.id}`,
+          title: meeting.title,
+          description: meeting.description,
+          date: dateStr,
+          start_time: startTime,
+          end_time: endTime,
+          type: 'meeting',
+          is_meeting: true,
+          meeting_id: meeting.id,
+          meeting_status: meeting.status,
+          attendees: meeting.attendee_ids,
+        });
+      }
+    });
+    
+    return items;
+  }, [events, meetings]);
 
   // Get days in month
   const getDaysInMonth = (month: number, year: number) => {
@@ -115,25 +158,25 @@ const CalendarTab = ({
   // Get events for a specific date
   const getEventsForDate = (day: number) => {
     const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return events.filter(e => e.date === dateStr);
+    return allCalendarItems.filter(e => e.date === dateStr);
   };
 
   // Get events for selected date
   const selectedDateEvents = useMemo(() => {
     if (!selectedDate) return [];
     const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
-    return events.filter(e => e.date === dateStr);
-  }, [selectedDate, events]);
+    return allCalendarItems.filter(e => e.date === dateStr);
+  }, [selectedDate, allCalendarItems]);
 
   // Get upcoming events (for agenda view)
   const upcomingEvents = useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-    return events
+    return allCalendarItems
       .filter(e => new Date(e.date) >= now)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, 10);
-  }, [events]);
+  }, [allCalendarItems]);
 
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
@@ -456,7 +499,15 @@ const CalendarTab = ({
                   <div className="flex items-start gap-2">
                     <div className={`w-1 h-full ${getEventTypeColor(event.type)} rounded-full flex-shrink-0 mt-1`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[#e9edef] text-sm font-medium">{event.title}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-[#e9edef] text-sm font-medium">{event.title}</p>
+                        {event.is_meeting && event.meeting_status === 'ongoing' && (
+                          <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs font-medium flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                            LIVE
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1 text-[#8696a0] text-xs mt-1">
                         <Clock className="w-3 h-3" />
                         <span>
@@ -473,8 +524,17 @@ const CalendarTab = ({
                       {event.description && (
                         <p className="text-[#8696a0] text-xs mt-1 line-clamp-2">{event.description}</p>
                       )}
+                      {event.is_meeting && event.meeting_status === 'ongoing' && onJoinMeeting && (
+                        <button
+                          onClick={() => onJoinMeeting(event.meeting_id!)}
+                          className="mt-2 px-3 py-1.5 rounded-lg bg-[#00a884] hover:bg-[#00ba95] text-[#0b141a] text-xs font-semibold transition-all flex items-center gap-1.5"
+                        >
+                          <Video className="w-3.5 h-3.5" />
+                          Join Meeting
+                        </button>
+                      )}
                     </div>
-                    {onDelete && (isAdmin || event.created_by === currentUserId) && (
+                    {onDelete && !event.is_meeting && (isAdmin || event.created_by === currentUserId) && (
                       <button
                         onClick={() => handleDelete(event.id)}
                         disabled={deletingId === event.id}

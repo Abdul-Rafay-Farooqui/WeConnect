@@ -1,10 +1,9 @@
-import { TEAM_TABS } from './constants';
+import { TEAM_TABS } from "./constants";
 
 const TeamWorkspaceHeader = ({
   selectedTeam,
   activeTab,
   setActiveTab,
-  setShowMeetingModal,
   onCreateTeam,
   onAddTeamMembers,
   onDeleteTeam,
@@ -23,9 +22,6 @@ const TeamWorkspaceHeader = ({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#00a884] border border-[#00a884]/30 hover:bg-[#00a884]/10 transition-all"
         >
           + Add Member
-        </button>
-        <button className="btn-primary" onClick={() => setShowMeetingModal(true)}>
-          Meeting
         </button>
 
         {/* Delete team – visible only to the team creator/admin */}
@@ -48,8 +44,8 @@ const TeamWorkspaceHeader = ({
           onClick={() => setActiveTab(tab)}
           className={`px-3 py-1 rounded-md text-sm capitalize ${
             activeTab === tab
-              ? 'bg-[#00a884] text-[#0b141a]'
-              : 'bg-transparent text-[#8696a0] hover:bg-[#202c33]'
+              ? "bg-[#00a884] text-[#0b141a]"
+              : "bg-transparent text-[#8696a0] hover:bg-[#202c33]"
           }`}
         >
           {tab}

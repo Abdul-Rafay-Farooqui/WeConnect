@@ -1,12 +1,13 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { useAuthStore } from '@/store/authStore';
-import { useCallStore } from '@/store/callStore';
-import { AuthAPI, UsersAPI } from '@/lib/api/endpoints';
-import { clearToken, getToken } from '@/lib/api/client';
-import { disconnectSocket, getSocket } from '@/lib/socket';
+import { useEffect, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useAuthStore } from "@/store/authStore";
+import { useCallStore } from "@/store/callStore";
+import { useUIStore } from "@/store/uiStore";
+import { AuthAPI, UsersAPI } from "@/lib/api/endpoints";
+import { clearToken, getToken } from "@/lib/api/client";
+import { disconnectSocket, getSocket } from "@/lib/socket";
 
 export default function AuthProvider({
   children,
@@ -15,6 +16,7 @@ export default function AuthProvider({
 }) {
   const { setUser, setProfile, setAuthLoaded, profile, user } = useAuthStore();
   const setIncomingCall = useCallStore((s) => s.setIncomingCall);
+  const setMeetingStartNotice = useUIStore((s) => s.setMeetingStartNotice);
   const router = useRouter();
   const pathname = usePathname();
   const initializedRef = useRef(false);
@@ -29,7 +31,7 @@ export default function AuthProvider({
           setProfile(null);
           setAuthLoaded(true);
           initializedRef.current = true;
-          if (!pathname.startsWith('/auth')) router.push('/auth/login');
+          if (!pathname.startsWith("/auth")) router.push("/auth/login");
           return;
         }
         const me = await AuthAPI.me();
@@ -38,8 +40,8 @@ export default function AuthProvider({
         setAuthLoaded(true);
         initializedRef.current = true;
 
-        if (!me.onboarding_complete && pathname !== '/auth/onboarding') {
-          router.push('/auth/onboarding');
+        if (!me.onboarding_complete && pathname !== "/auth/onboarding") {
+          router.push("/auth/onboarding");
         }
       } catch {
         clearToken();
@@ -47,7 +49,7 @@ export default function AuthProvider({
         setProfile(null);
         setAuthLoaded(true);
         initializedRef.current = true;
-        if (!pathname.startsWith('/auth')) router.push('/auth/login');
+        if (!pathname.startsWith("/auth")) router.push("/auth/login");
       }
     };
     init();
@@ -63,22 +65,35 @@ export default function AuthProvider({
     const socket = getSocket();
 
     const onIncoming = (call: any) => {
-      if (call?.status === 'ringing') setIncomingCall(call);
+      if (call?.status === "ringing") setIncomingCall(call);
     };
     const onUpdate = (call: any) => {
-      if (['ended', 'declined', 'failed', 'missed'].includes(call?.status)) {
+      if (["ended", "declined", "failed", "missed"].includes(call?.status)) {
         setIncomingCall(null);
       }
     };
+    const onMeetingStarted = (payload: any) => {
+      if (!payload || payload.started_by === user?.id) return;
+      setMeetingStartNotice({
+        organization_id: payload.organization_id,
+        team_id: payload.team_id,
+        meeting_id: payload.meeting_id,
+        title: payload.title || "Meeting",
+        started_by: payload.started_by,
+        call_type: payload.call_type || "video",
+      });
+    };
 
-    socket.on('call:incoming', onIncoming);
-    socket.on('call:update', onUpdate);
+    socket.on("call:incoming", onIncoming);
+    socket.on("call:update", onUpdate);
+    socket.on("meeting:started", onMeetingStarted);
 
     return () => {
-      socket.off('call:incoming', onIncoming);
-      socket.off('call:update', onUpdate);
+      socket.off("call:incoming", onIncoming);
+      socket.off("call:update", onUpdate);
+      socket.off("meeting:started", onMeetingStarted);
     };
-  }, [user?.id, setIncomingCall]);
+  }, [user?.id, setIncomingCall, setMeetingStartNotice]);
 
   // ── 3. Presence: mark online / offline via backend ────────────────────────
   useEffect(() => {
@@ -94,12 +109,12 @@ export default function AuthProvider({
         UsersAPI.setPresence(false).catch(() => {});
       } catch {}
     };
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('beforeunload', onUnload);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("beforeunload", onUnload);
 
     return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('beforeunload', onUnload);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("beforeunload", onUnload);
       UsersAPI.setPresence(false).catch(() => {});
     };
   }, [user?.id]);
