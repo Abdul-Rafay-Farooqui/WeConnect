@@ -1,12 +1,11 @@
 import ActivityTab from "./tabs/ActivityTab";
 import ApprovalsTab from "./tabs/ApprovalsTab";
-import AttendanceTab from "./tabs/AttendanceTab";
-import CalendarTab from "./tabs/CalendarTab";
+// CalendarTab removed - now organization-level only
 import ChatTab from "./tabs/ChatTab";
 import FilesTab from "./tabs/FilesTab";
 import MeetingsTab from "./tabs/MeetingsTab";
 import MembersTab from "./tabs/MembersTab";
-import PraiseTab from "./tabs/PraiseTab";
+// PraiseTab removed - now organization-level only
 import TasksTab from "./tabs/TasksTab";
 
 const TeamTabContent = ({
@@ -26,8 +25,8 @@ const TeamTabContent = ({
   onAddTask,
   onDeleteTask,
   onUpdateTask,
-  onAddCalendarEvent,
-  onDeleteCalendarEvent,
+  // onAddCalendarEvent removed - now organization-level only
+  // onDeleteCalendarEvent removed - now organization-level only
   onClockIn,
   onClockOut,
   onRequestApproval,
@@ -110,30 +109,7 @@ const TeamTabContent = ({
         onUpdate={onUpdateTask}
       />
     );
-  if (activeTab === "calendar")
-    return (
-      <CalendarTab
-        events={teamData.calendar}
-        teamMembers={(teamData.members ?? []).map((m: any) => ({
-          id: m.id,
-          name: m.name,
-        }))}
-        currentUserId={currentUserId}
-        isAdmin={isTeamAdmin}
-        onAdd={onAddCalendarEvent}
-        onDelete={onDeleteCalendarEvent}
-      />
-    );
-  if (activeTab === "attendance")
-    return (
-      <AttendanceTab
-        attendance={teamData.attendance}
-        currentUserId={currentUserId}
-        isAdmin={isTeamAdmin}
-        onClockIn={onClockIn}
-        onClockOut={onClockOut}
-      />
-    );
+  // Calendar tab removed - now organization-level only
   if (activeTab === "approvals")
     return (
       <ApprovalsTab
@@ -146,19 +122,7 @@ const TeamTabContent = ({
         onCancel={onCancelApproval}
       />
     );
-  if (activeTab === "praise")
-    return (
-      <PraiseTab
-        praise={teamData.praise}
-        teamMembers={(teamData.members ?? []).map((m: any) => ({
-          id: m.id,
-          name: m.name,
-          avatar: m.avatar,
-        }))}
-        currentUserId={currentUserId}
-        onSendPraise={onSendPraise}
-      />
-    );
+  // Praise tab removed - now organization-level only
   return null;
 };
 

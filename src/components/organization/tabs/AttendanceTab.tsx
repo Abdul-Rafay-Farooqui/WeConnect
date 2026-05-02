@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Clock, LogIn, LogOut, Calendar, Download, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface AttendanceRecord {
   id: string;
@@ -179,6 +180,78 @@ const AttendanceTab = ({
     </svg>
   );
 
+  const exportToExcel = () => {
+    if (viewMode === 'today') {
+      // Export today's attendance
+      const exportData = todayAttendance.map(record => ({
+        'Name': record.name,
+        'Date': record.date,
+        'Clock In': formatTime(record.sign_in_at),
+        'Clock Out': formatTime(record.sign_out_at),
+        'Duration': calculateDuration(record.sign_in_at, record.sign_out_at),
+        'Status': record.status.charAt(0).toUpperCase() + record.status.slice(1),
+        'Total Hours': record.hours,
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Today Attendance');
+
+      // Auto-size columns
+      const maxWidth = exportData.reduce((w, r) => Math.max(w, r.Name.length), 10);
+      worksheet['!cols'] = [
+        { wch: maxWidth },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 12 },
+      ];
+
+      XLSX.writeFile(workbook, `Attendance_${todayStr}.xlsx`);
+    } else {
+      // Export full history
+      const exportData: any[] = [];
+      
+      attendanceByUser.forEach((records, userId) => {
+        records.forEach(record => {
+          exportData.push({
+            'Name': record.name,
+            'Date': formatDate(record.date),
+            'Clock In': formatTime(record.sign_in_at),
+            'Clock Out': formatTime(record.sign_out_at),
+            'Duration': calculateDuration(record.sign_in_at, record.sign_out_at),
+            'Status': record.status.charAt(0).toUpperCase() + record.status.slice(1),
+            'Total Hours': record.hours,
+            'Work Minutes': record.work_minutes,
+          });
+        });
+      });
+
+      // Sort by date descending
+      exportData.sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance History');
+
+      // Auto-size columns
+      worksheet['!cols'] = [
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 15 },
+      ];
+
+      XLSX.writeFile(workbook, `Attendance_History_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Current Time & User Status Card */}
@@ -308,7 +381,10 @@ const AttendanceTab = ({
 
           {/* Export Button - Admin Only */}
           {isAdmin && (
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-[#e9edef] bg-[#111b21] border border-[#222d34] hover:bg-[#202c33] transition-all">
+            <button 
+              onClick={exportToExcel}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-[#e9edef] bg-[#111b21] border border-[#222d34] hover:bg-[#202c33] transition-all"
+            >
               <Download className="w-4 h-4" />
               Export
             </button>

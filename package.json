@@ -28,6 +28,7 @@
     "tailwind-merge": "^3.5.0",
     "uuid": "^10.0.0",
     "wavesurfer.js": "^7.12.5",
+    "xlsx": "^0.18.5",
     "yet-another-react-lightbox": "^3.30.1",
     "zod": "^4.3.6",
     "zustand": "^5.0.12"

@@ -265,12 +265,79 @@ export const OrganizationAPI = {
         `/organizations/${organizationId}/teams/${teamId}/approvals/${approvalId}`,
       )
       .then((r) => r.data),
-  sendPraise: (
+  // Remove team-level praise API methods (now organization-level only)
+  // Organization-level praise
+  sendOrgPraise: (
     organizationId: string,
-    teamId: string,
     payload: { to_user_id: string; badge: string; message?: string },
   ) =>
     api
-      .post(`/organizations/${organizationId}/teams/${teamId}/praise`, payload)
+      .post(`/organizations/${organizationId}/praise`, payload)
+      .then((r) => r.data),
+  getOrgPraise: (organizationId: string) =>
+    api.get(`/organizations/${organizationId}/praise`).then((r) => r.data),
+  
+  // Notifications
+  getNotifications: (organizationId: string) => {
+    console.log('[API] Getting notifications for org:', organizationId);
+    return api.get(`/organizations/${organizationId}/notifications`).then((r) => {
+      console.log('[API] Notifications response:', r.data);
+      return r.data;
+    }).catch(err => {
+      console.error('[API] Notifications error:', err);
+      throw err;
+    });
+  },
+  markNotificationAsRead: (organizationId: string, notificationId: string) =>
+    api
+      .patch(`/organizations/${organizationId}/notifications/${notificationId}/read`)
+      .then((r) => r.data),
+  markAllNotificationsAsRead: (organizationId: string) =>
+    api
+      .post(`/organizations/${organizationId}/notifications/mark-all-read`)
+      .then((r) => r.data),
+  deleteNotification: (organizationId: string, notificationId: string) =>
+    api
+      .delete(`/organizations/${organizationId}/notifications/${notificationId}`)
+      .then((r) => r.data),
+  
+  // Organization-level attendance
+  orgClockIn: (organizationId: string) =>
+    api
+      .post(`/organizations/${organizationId}/attendance/clock-in`)
+      .then((r) => r.data),
+  orgClockOut: (organizationId: string) =>
+    api
+      .post(`/organizations/${organizationId}/attendance/clock-out`)
+      .then((r) => r.data),
+  getOrgAttendance: (organizationId: string) =>
+    api
+      .get(`/organizations/${organizationId}/attendance`)
+      .then((r) => r.data),
+  
+  // Organization-level calendar
+  createOrgCalendarEvent: (
+    organizationId: string,
+    payload: {
+      title: string;
+      description?: string;
+      date: string;
+      start_time: string;
+      end_time?: string;
+      location?: string;
+      attendee_ids?: string[];
+      type?: string;
+    },
+  ) =>
+    api
+      .post(`/organizations/${organizationId}/calendar`, payload)
+      .then((r) => r.data),
+  deleteOrgCalendarEvent: (organizationId: string, eventId: string) =>
+    api
+      .delete(`/organizations/${organizationId}/calendar/${eventId}`)
+      .then((r) => r.data),
+  getOrgCalendar: (organizationId: string) =>
+    api
+      .get(`/organizations/${organizationId}/calendar`)
       .then((r) => r.data),
 };

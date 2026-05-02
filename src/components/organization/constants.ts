@@ -13,10 +13,9 @@ export const TEAM_TABS = [
   'files',
   'meetings',
   'tasks',
-  'calendar',
-  'attendance',
   'approvals',
-  'praise',
+  // 'calendar' removed - now organization-level only
+  // 'praise' removed - now organization-level only
 ];
 
 export const teamData = {
@@ -28,5 +27,5 @@ export const teamData = {
   tasks: [],
   activity: [],
   approvals: [],
-  praise: [],
+  praise: [], // Keep for backward compatibility but not displayed
 };

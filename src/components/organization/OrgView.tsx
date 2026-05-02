@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { OrganizationAPI } from "@/lib/api/organization";
 import { useAuthStore } from "@/store/authStore";
 import { useOrganizationWorkspace } from "@/src/hooks/useOrganizationWorkspace";
-import EmptyTeamState from "./EmptyTeamState";
+import { useOrganizationRealtime } from "@/src/hooks/useOrganizationRealtime";
+import OrganizationMembersView from "./OrganizationMembersView";
 import {
   AddOrgMembersModal,
   AddTeamMembersModal,
@@ -20,7 +21,15 @@ import TeamWorkspaceHeader from "./TeamWorkspaceHeader";
 import WorkspaceCommandBar from "./WorkspaceCommandBar";
 import { teamData as defaultTeamData } from "./constants";
 
-const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
+const OrgView = ({ 
+  presence = "available", 
+  presenceOptions = [] as any[],
+  onOrgChange,
+}: {
+  presence?: string;
+  presenceOptions?: any[];
+  onOrgChange?: (orgId: string | null) => void;
+}) => {
   const currentUser = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
 
@@ -46,6 +55,10 @@ const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [commandBarQuery, setCommandBarQuery] = useState("");
+  const [orgAttendance, setOrgAttendance] = useState<any[]>([]);
+  const [orgPraise, setOrgPraise] = useState<any[]>([]);
+  const [orgCalendar, setOrgCalendar] = useState<any[]>([]);
+  const [orgMeetings, setOrgMeetings] = useState<any[]>([]);
 
   // ── Modal visibility ──────────────────────────────────────────────────────
   const [showCreateOrg, setShowCreateOrg] = useState(false);
@@ -100,12 +113,139 @@ const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
       setSelectedOrg(null);
       setSelectedTeam(null);
       setTeamData(defaultTeamData);
+      setOrgAttendance([]);
+      setOrgPraise([]);
       return;
     }
     setSelectedOrg(organizationId);
     setSelectedTeam(null);
     setTeamData(defaultTeamData);
+    setOrgAttendance([]);
+    setOrgPraise([]);
+    setOrgCalendar([]);
+    setOrgMeetings([]);
+    
+    // Load organization attendance, praise, and calendar
+    if (organizationId) {
+      loadOrgAttendance(organizationId);
+      loadOrgPraise(organizationId);
+      loadOrgCalendar(organizationId);
+    }
   };
+
+  // Load organization attendance
+  const loadOrgAttendance = async (organizationId: string) => {
+    try {
+      const data = await OrganizationAPI.getOrgAttendance(organizationId);
+      setOrgAttendance(data?.attendance || []);
+    } catch (err) {
+      console.error('Failed to load org attendance:', err);
+      setOrgAttendance([]);
+    }
+  };
+
+  // Load organization praise
+  const loadOrgPraise = async (organizationId: string) => {
+    try {
+      const data = await OrganizationAPI.getOrgPraise(organizationId);
+      setOrgPraise(data?.praise || []);
+    } catch (err) {
+      console.error('Failed to load org praise:', err);
+      setOrgPraise([]);
+    }
+  };
+
+  // Load organization calendar
+  const loadOrgCalendar = async (organizationId: string) => {
+    try {
+      const data = await OrganizationAPI.getOrgCalendar(organizationId);
+      setOrgCalendar(data?.calendar || []);
+      setOrgMeetings(data?.meetings || []);
+    } catch (err) {
+      console.error('Failed to load org calendar:', err);
+      setOrgCalendar([]);
+      setOrgMeetings([]);
+    }
+  };
+
+  // Real-time updates for organization
+  useOrganizationRealtime({
+    organizationId: selectedOrg,
+    onCalendarCreated: (data) => {
+      console.log('[Realtime] Calendar event created:', data);
+      if (selectedOrg) loadOrgCalendar(selectedOrg);
+    },
+    onCalendarDeleted: (data) => {
+      console.log('[Realtime] Calendar event deleted:', data);
+      if (selectedOrg) loadOrgCalendar(selectedOrg);
+    },
+    onTaskCreated: (data) => {
+      console.log('[Realtime] Task created:', data);
+      if (selectedOrg && selectedTeam?.id) {
+        loadTeamWorkspace(selectedOrg, selectedTeam.id);
+      }
+    },
+    onTaskUpdated: (data) => {
+      console.log('[Realtime] Task updated:', data);
+      if (selectedOrg && selectedTeam?.id) {
+        loadTeamWorkspace(selectedOrg, selectedTeam.id);
+      }
+    },
+    onTaskDeleted: (data) => {
+      console.log('[Realtime] Task deleted:', data);
+      if (selectedOrg && selectedTeam?.id) {
+        loadTeamWorkspace(selectedOrg, selectedTeam.id);
+      }
+    },
+    onPraiseCreated: (data) => {
+      console.log('[Realtime] Praise created:', data);
+      if (selectedOrg) loadOrgPraise(selectedOrg);
+    },
+    onAttendanceUpdated: (data) => {
+      console.log('[Realtime] Attendance updated:', data);
+      if (selectedOrg) loadOrgAttendance(selectedOrg);
+    },
+    onApprovalCreated: (data) => {
+      console.log('[Realtime] Approval created:', data);
+      if (selectedOrg && selectedTeam?.id) {
+        loadTeamWorkspace(selectedOrg, selectedTeam.id);
+      }
+    },
+    onApprovalUpdated: (data) => {
+      console.log('[Realtime] Approval updated:', data);
+      if (selectedOrg && selectedTeam?.id) {
+        loadTeamWorkspace(selectedOrg, selectedTeam.id);
+      }
+    },
+    onMemberAdded: (data) => {
+      console.log('[Realtime] Member added:', data);
+      if (selectedOrg) loadOrganizationTeams(selectedOrg, true);
+    },
+    onMemberRemoved: (data) => {
+      console.log('[Realtime] Member removed:', data);
+      if (selectedOrg) loadOrganizationTeams(selectedOrg, true);
+    },
+    onTeamCreated: (data) => {
+      console.log('[Realtime] Team created:', data);
+      if (selectedOrg) loadOrganizationTeams(selectedOrg, true);
+    },
+    onTeamDeleted: (data) => {
+      console.log('[Realtime] Team deleted:', data);
+      if (selectedOrg) loadOrganizationTeams(selectedOrg, true);
+    },
+  });
+
+  // Reload attendance, praise, and calendar when org changes
+  useEffect(() => {
+    if (selectedOrg) {
+      loadOrgAttendance(selectedOrg);
+      loadOrgPraise(selectedOrg);
+    }
+    // Notify parent component about org change
+    if (onOrgChange) {
+      onOrgChange(selectedOrg);
+    }
+  }, [selectedOrg, onOrgChange]);
 
   // ── Create Organization ───────────────────────────────────────────────────
   const handleCreateOrganization = async (name: string, slug: string) => {
@@ -244,28 +384,18 @@ const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
     attendee_ids?: string[];
     type?: string;
   }) => {
-    if (!selectedOrg || !selectedTeam?.id) throw new Error("No team selected");
-    await OrganizationAPI.createCalendarEvent(
-      selectedOrg,
-      selectedTeam.id,
-      payload,
-    );
-    await OrganizationAPI.createActivity(selectedOrg, selectedTeam.id, {
-      activity_type: "meeting_scheduled",
-      preview_text: `${profile?.display_name || "Someone"} scheduled "${payload.title}" on ${payload.date}`,
-    }).catch(() => {});
-    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+    if (!selectedOrg) throw new Error("No organization selected");
+    await OrganizationAPI.createOrgCalendarEvent(selectedOrg, payload);
+    await loadOrgCalendar(selectedOrg);
   };
 
   const handleDeleteCalendarEvent = async (eventId: string) => {
-    if (!selectedOrg || !selectedTeam?.id) throw new Error("No team selected");
-    await OrganizationAPI.deleteCalendarEvent(
-      selectedOrg,
-      selectedTeam.id,
-      eventId,
-    );
-    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+    if (!selectedOrg) throw new Error("No organization selected");
+    await OrganizationAPI.deleteOrgCalendarEvent(selectedOrg, eventId);
+    await loadOrgCalendar(selectedOrg);
   };
+
+  // Team-level calendar removed - now organization-level only
 
   // ── Meetings ──────────────────────────────────────────────────────────────
   const handleScheduleMeeting = async (payload: {
@@ -338,6 +468,19 @@ const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
     await loadTeamWorkspace(selectedOrg, selectedTeam.id);
   };
 
+  // Organization-level attendance
+  const handleOrgClockIn = async () => {
+    if (!selectedOrg) throw new Error("No organization selected");
+    await OrganizationAPI.orgClockIn(selectedOrg);
+    await loadOrgAttendance(selectedOrg);
+  };
+
+  const handleOrgClockOut = async () => {
+    if (!selectedOrg) throw new Error("No organization selected");
+    await OrganizationAPI.orgClockOut(selectedOrg);
+    await loadOrgAttendance(selectedOrg);
+  };
+
   // ── Approvals ─────────────────────────────────────────────────────────────
   const handleRequestApproval = async (payload: {
     approval_type: string;
@@ -383,14 +526,17 @@ const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
   };
 
   // ── Praise ────────────────────────────────────────────────────────────────
-  const handleSendPraise = async (payload: {
+  // Team-level praise removed - now organization-level only
+
+  // Organization-level praise
+  const handleSendOrgPraise = async (payload: {
     to_user_id: string;
     badge: string;
     message?: string;
   }) => {
-    if (!selectedOrg || !selectedTeam?.id) throw new Error("No team selected");
-    await OrganizationAPI.sendPraise(selectedOrg, selectedTeam.id, payload);
-    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+    if (!selectedOrg) throw new Error("No organization selected");
+    await OrganizationAPI.sendOrgPraise(selectedOrg, payload);
+    await loadOrgPraise(selectedOrg);
   };
 
   // ── Remove Team Member ────────────────────────────────────────────────────
@@ -514,15 +660,14 @@ const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
                 onAddTask={handleAddTask}
                 onDeleteTask={handleDeleteTask}
                 onUpdateTask={handleUpdateTask}
-                onAddCalendarEvent={handleAddCalendarEvent}
-                onDeleteCalendarEvent={handleDeleteCalendarEvent}
+                // Calendar removed from team level - now org-level only
                 onClockIn={handleClockIn}
                 onClockOut={handleClockOut}
                 onRequestApproval={handleRequestApproval}
                 onApproveApproval={handleApproveApproval}
                 onRejectApproval={handleRejectApproval}
                 onCancelApproval={handleCancelApproval}
-                onSendPraise={handleSendPraise}
+                // onSendPraise removed - now organization-level only
                 onScheduleMeeting={handleScheduleMeeting}
                 onStartMeetingNow={handleStartMeetingNow}
                 onStartMeeting={handleStartMeeting}
@@ -536,10 +681,14 @@ const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
               setShowTaskModal={setShowTaskModal}
             />
           </>
-        ) : (
-          <EmptyTeamState
+        ) : selectedOrg ? (
+          <OrganizationMembersView
             orgName={selectedOrgObj?.name}
             orgMembers={selectedOrgObj?.members ?? []}
+            attendance={orgAttendance}
+            praise={orgPraise}
+            calendar={orgCalendar}
+            meetings={orgMeetings}
             isOrgAdmin={isOrgAdmin}
             currentUserId={uid}
             onAddMembers={() => {
@@ -547,7 +696,50 @@ const OrgView = ({ presence = "available", presenceOptions = [] as any[] }) => {
               setShowAddOrgMembers(true);
             }}
             onRemoveMember={handleRemoveOrgMember}
+            onClockIn={handleOrgClockIn}
+            onClockOut={handleOrgClockOut}
+            onSendPraise={handleSendOrgPraise}
+            onAddCalendarEvent={handleAddCalendarEvent}
+            onDeleteCalendarEvent={handleDeleteCalendarEvent}
           />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full gap-6 p-8">
+            <div className="w-32 h-32 rounded-full bg-[#1e2a30] flex items-center justify-center">
+              <span className="text-6xl">🏢</span>
+            </div>
+            <div className="text-center max-w-md">
+              <h2 className="text-[#e9edef] text-2xl font-bold mb-2">
+                Welcome to Organizations
+              </h2>
+              <p className="text-[#8696a0] text-sm mb-6">
+                Organizations help you manage teams, projects, and collaborate with your colleagues. 
+                Create your first organization to get started.
+              </p>
+              <button
+                onClick={() => setShowCreateOrg(true)}
+                className="px-6 py-3 rounded-lg text-sm font-semibold bg-[#00a884] text-[#0b141a] hover:bg-[#00a884]/90 transition-all shadow-lg"
+              >
+                🏢 Create Organization
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mt-8 max-w-2xl">
+              <div className="text-center p-4 bg-[#111b21] rounded-xl border border-[#222d34]">
+                <div className="text-3xl mb-2">👥</div>
+                <p className="text-[#e9edef] text-sm font-semibold mb-1">Teams</p>
+                <p className="text-[#8696a0] text-xs">Organize members into teams</p>
+              </div>
+              <div className="text-center p-4 bg-[#111b21] rounded-xl border border-[#222d34]">
+                <div className="text-3xl mb-2">📅</div>
+                <p className="text-[#e9edef] text-sm font-semibold mb-1">Meetings</p>
+                <p className="text-[#8696a0] text-xs">Schedule and manage meetings</p>
+              </div>
+              <div className="text-center p-4 bg-[#111b21] rounded-xl border border-[#222d34]">
+                <div className="text-3xl mb-2">✅</div>
+                <p className="text-[#e9edef] text-sm font-semibold mb-1">Tasks</p>
+                <p className="text-[#8696a0] text-xs">Track work and assignments</p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

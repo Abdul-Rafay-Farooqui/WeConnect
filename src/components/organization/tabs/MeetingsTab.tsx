@@ -43,6 +43,7 @@ const MeetingsTab = ({
     startTime: "",
     endTime: "",
     call_type: "video",
+    selectedAttendees: [] as string[],
   });
 
   const sortedMeetings = useMemo(() => {
@@ -199,7 +200,9 @@ const MeetingsTab = ({
         starts_at: startsAt.toISOString(),
         ends_at: endsAt.toISOString(),
         call_type: scheduleForm.call_type,
-        attendee_ids: members.map((m: any) => m.id),
+        attendee_ids: scheduleForm.selectedAttendees.length > 0 
+          ? scheduleForm.selectedAttendees 
+          : members.map((m: any) => m.id), // Default to all if none selected
       });
       setScheduleForm({
         title: "",
@@ -208,6 +211,7 @@ const MeetingsTab = ({
         startTime: "",
         endTime: "",
         call_type: "video",
+        selectedAttendees: [],
       });
       setShowScheduleModal(false);
     } finally {
@@ -685,11 +689,82 @@ const MeetingsTab = ({
                 </div>
               </div>
 
-              <div className="bg-[#0b141a] border border-[#2a3942] rounded-lg p-4">
-                <div className="flex items-center gap-2 text-[#8696a0] text-sm">
-                  <Users className="w-4 h-4" />
-                  <span>All team members ({members.length}) will be invited</span>
+              <div>
+                <label className="block text-[#8696a0] text-sm font-medium mb-2">
+                  Attendees *
+                </label>
+                <div className="bg-[#0b141a] border border-[#2a3942] rounded-lg p-4 max-h-48 overflow-y-auto space-y-2">
+                  <label className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#111b21] cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={scheduleForm.selectedAttendees.length === members.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setScheduleForm((prev) => ({
+                            ...prev,
+                            selectedAttendees: members.map((m: any) => m.id),
+                          }));
+                        } else {
+                          setScheduleForm((prev) => ({
+                            ...prev,
+                            selectedAttendees: [],
+                          }));
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-[#2a3942] text-[#00a884] focus:ring-[#00a884] focus:ring-offset-0 bg-[#0b141a]"
+                    />
+                    <span className="text-[#e9edef] font-medium">
+                      Select All ({members.length})
+                    </span>
+                  </label>
+                  <div className="border-t border-[#2a3942] my-2" />
+                  {members.map((member: any) => (
+                    <label
+                      key={member.id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#111b21] cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={scheduleForm.selectedAttendees.includes(member.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setScheduleForm((prev) => ({
+                              ...prev,
+                              selectedAttendees: [...prev.selectedAttendees, member.id],
+                            }));
+                          } else {
+                            setScheduleForm((prev) => ({
+                              ...prev,
+                              selectedAttendees: prev.selectedAttendees.filter(
+                                (id) => id !== member.id
+                              ),
+                            }));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-[#2a3942] text-[#00a884] focus:ring-[#00a884] focus:ring-offset-0 bg-[#0b141a]"
+                      />
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {member.avatar ? (
+                          <img
+                            src={member.avatar}
+                            alt={member.name}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-[#2a3942] flex items-center justify-center text-[#00a884] font-bold text-sm">
+                            {member.name?.[0]?.toUpperCase() || "?"}
+                          </div>
+                        )}
+                        <span className="text-[#e9edef] truncate">{member.name}</span>
+                      </div>
+                    </label>
+                  ))}
                 </div>
+                <p className="text-[#8696a0] text-xs mt-2">
+                  {scheduleForm.selectedAttendees.length === 0
+                    ? "All team members will be invited by default"
+                    : `${scheduleForm.selectedAttendees.length} member${scheduleForm.selectedAttendees.length !== 1 ? "s" : ""} selected`}
+                </p>
               </div>
 
               <div className="flex gap-3 pt-2">

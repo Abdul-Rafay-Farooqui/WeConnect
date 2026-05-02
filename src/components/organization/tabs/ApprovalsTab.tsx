@@ -10,7 +10,7 @@ interface Approval {
   requester_avatar?: string | null;
   approver_id?: string | null;
   approver_name?: string | null;
-  approval_type: 'leave' | 'purchase' | 'timesheet' | 'expense' | 'other';
+  approval_type: 'leave' | 'attendance' | 'purchase' | 'timesheet' | 'expense' | 'other';
   title: string;
   description?: string | null;
   amount?: string | null;
@@ -37,6 +37,7 @@ interface ApprovalsTabProps {
 
 const APPROVAL_TYPES = [
   { value: 'leave', label: 'Leave Request', icon: CalendarIcon, color: 'text-blue-400' },
+  { value: 'attendance', label: 'Attendance Request', icon: Clock, color: 'text-orange-400' },
   { value: 'purchase', label: 'Purchase Request', icon: Briefcase, color: 'text-purple-400' },
   { value: 'expense', label: 'Expense Claim', icon: DollarSign, color: 'text-green-400' },
   { value: 'timesheet', label: 'Timesheet Approval', icon: Clock, color: 'text-yellow-400' },
@@ -69,6 +70,9 @@ const ApprovalsTab = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const [attendanceDate, setAttendanceDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [decisionNote, setDecisionNote] = useState('');
   
   const [submitting, setSubmitting] = useState(false);
@@ -91,6 +95,9 @@ const ApprovalsTab = ({
     setTitle('');
     setDescription('');
     setAmount('');
+    setAttendanceDate('');
+    setStartDate('');
+    setEndDate('');
     setApprovalType('leave');
     setErr('');
   };
@@ -106,15 +113,37 @@ const ApprovalsTab = ({
       return;
     }
 
+    if (approvalType === 'attendance' && !attendanceDate) {
+      setErr('Date is required for attendance requests');
+      return;
+    }
+
+    if (approvalType === 'leave' && (!startDate || !endDate)) {
+      setErr('Start date and end date are required for leave requests');
+      return;
+    }
+
     setSubmitting(true);
     setErr('');
     try {
-      await onRequestApproval?.({
+      const payload: any = {
         approval_type: approvalType,
         title: title.trim(),
         description: description.trim() || undefined,
         amount: amount || undefined,
-      });
+      };
+
+      // Add attendance date to description for attendance requests
+      if (approvalType === 'attendance' && attendanceDate) {
+        payload.description = `Date: ${attendanceDate}${description.trim() ? '\n' + description.trim() : ''}`;
+      }
+
+      // Add leave dates to description for leave requests
+      if (approvalType === 'leave' && startDate && endDate) {
+        payload.description = `From: ${startDate} To: ${endDate}${description.trim() ? '\n' + description.trim() : ''}`;
+      }
+
+      await onRequestApproval?.(payload);
       resetForm();
       setShowRequestModal(false);
     } catch (e: any) {
@@ -413,6 +442,51 @@ const ApprovalsTab = ({
                   className="w-full bg-[#0b141a] border border-[#2a3942] text-[#e9edef] text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00a884] placeholder-[#4a5568] resize-none"
                 />
               </div>
+
+              {approvalType === 'leave' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#8696a0] text-xs uppercase tracking-wider mb-1">
+                      Start Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full bg-[#0b141a] border border-[#2a3942] text-[#e9edef] text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00a884]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[#8696a0] text-xs uppercase tracking-wider mb-1">
+                      End Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      min={startDate}
+                      className="w-full bg-[#0b141a] border border-[#2a3942] text-[#e9edef] text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00a884]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {approvalType === 'attendance' && (
+                <div>
+                  <label className="block text-[#8696a0] text-xs uppercase tracking-wider mb-1">
+                    Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={attendanceDate}
+                    onChange={(e) => setAttendanceDate(e.target.value)}
+                    className="w-full bg-[#0b141a] border border-[#2a3942] text-[#e9edef] text-sm rounded-lg px-3 py-2 outline-none focus:border-[#00a884]"
+                  />
+                  <p className="text-[#8696a0] text-xs mt-1">
+                    Select the date for which you need attendance correction/approval
+                  </p>
+                </div>
+              )}
 
               {(approvalType === 'purchase' || approvalType === 'expense') && (
                 <div>
