@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getSocket } from "@/lib/socket";
-import MeetingRoomModal from "./MeetingRoomModal";
+import JitsiMeetingRoom from "./JitsiMeetingRoom";
+import IncomingMeetingModal from "../IncomingMeetingModal";
 import { useUIStore } from "@/store/uiStore";
 import { MeetingScheduler } from "@/lib/meetingScheduler";
 import { Video, Phone, Calendar, Clock, Users, Plus, Play, X, Bell } from "lucide-react";
@@ -13,6 +14,7 @@ const MeetingsTab = ({
   organizationId,
   teamId,
   currentUserId,
+  currentUserName,
   isAdmin,
   onScheduleMeeting,
   onStartMeetingNow,
@@ -24,8 +26,15 @@ const MeetingsTab = ({
   const [meetingToJoin, setMeetingToJoin] = useState<any>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [incomingMeeting, setIncomingMeeting] = useState<any>(null);
   const openMeetingScreen = useUIStore((s) => s.openMeetingScreen);
   const addMeetingNotification = useUIStore((s) => s.addMeetingNotification);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
 
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -70,6 +79,16 @@ const MeetingsTab = ({
   useEffect(() => {
     if (!organizationId || !teamId || !onRefresh) return;
     
+    const socket = getSocket();
+    
+    // Join team room for real-time notifications
+    socket.emit('join:team', {
+      team_id: teamId,
+      organization_id: organizationId
+    });
+    
+    console.log('[Meetings] Joined team room:', teamId);
+    
     // Start monitoring scheduled meetings
     MeetingScheduler.startMonitoring(meetings);
     
@@ -78,12 +97,12 @@ const MeetingsTab = ({
       setNotificationsEnabled(granted);
     });
 
-    const socket = getSocket();
     const refetch = () => {
       onRefresh();
     };
 
     socket.on("meeting:scheduled", (data: any) => {
+      console.log('[Meetings] Meeting scheduled:', data);
       refetch();
       if (data?.meeting) {
         MeetingScheduler.notifyMeetingScheduled(data.meeting);
@@ -91,8 +110,21 @@ const MeetingsTab = ({
     });
     
     socket.on("meeting:started", (data: any) => {
+      console.log('[Meetings] Meeting started:', data);
+      console.log('[Meetings] Current user ID:', currentUserId);
+      console.log('[Meetings] Meeting started by:', data?.meeting?.started_by);
+      
       refetch();
       if (data?.meeting) {
+        // Don't show notification if the current user started the meeting
+        if (data.meeting.started_by !== currentUserId) {
+          console.log('[Meetings] Showing incoming call modal');
+          // Show incoming call modal with sound
+          setIncomingMeeting(data.meeting);
+        } else {
+          console.log('[Meetings] Not showing modal - current user started the meeting');
+        }
+        
         MeetingScheduler.notifyMeetingStarted(data.meeting);
         addMeetingNotification({
           id: `${data.meeting.id}-started-${Date.now()}`,
@@ -101,7 +133,7 @@ const MeetingsTab = ({
           team_id: data.meeting.team_id,
           title: data.meeting.title,
           type: 'started',
-          message: 'Meeting has started. Join now!',
+          message: `${data.meeting.started_by_name || 'Someone'} started a meeting. Join now!`,
           call_type: data.meeting.call_type,
           created_at: new Date().toISOString(),
           read: false,
@@ -109,11 +141,32 @@ const MeetingsTab = ({
       }
     });
     
-    socket.on("meeting:ended", refetch);
+    socket.on("meeting:notification", (data: any) => {
+      console.log('[Meetings] Meeting notification:', data);
+      showToast(data.message, 'info');
+      addMeetingNotification({
+        id: `${data.meeting.id}-notif-${Date.now()}`,
+        meeting_id: data.meeting.id,
+        organization_id: data.meeting.organization_id,
+        team_id: data.meeting.team_id,
+        title: data.meeting.title,
+        type: data.type,
+        message: data.message,
+        call_type: data.meeting.call_type,
+        created_at: new Date().toISOString(),
+        read: false,
+      });
+    });
+    
+    socket.on("meeting:ended", (data: any) => {
+      console.log('[Meetings] Meeting ended:', data);
+      refetch();
+    });
 
     return () => {
       socket.off("meeting:scheduled");
       socket.off("meeting:started");
+      socket.off("meeting:notification");
       socket.off("meeting:ended");
       MeetingScheduler.stopMonitoring();
     };
@@ -175,20 +228,32 @@ const MeetingsTab = ({
         attendee_ids: members.map((m: any) => m.id),
       });
 
-      if (started?.meeting_id && organizationId && teamId) {
-        openMeetingScreen({
+      if (started?.meeting_id) {
+        // Emit socket event to notify team members
+        const socket = getSocket();
+        socket.emit('meeting:start', {
+          meeting_id: started.meeting_id,
           organization_id: organizationId,
           team_id: teamId,
-          meeting_id: started.meeting_id,
-          title: instantTitle,
-          call_type: started.call_type || "video",
         });
-      } else {
-        await onRefresh?.();
-        const liveMeeting = (meetings || []).find(
-          (m: any) => m.title === instantTitle && m.status === "ongoing",
-        );
-        if (liveMeeting) setMeetingToJoin(liveMeeting);
+        
+        console.log('[Meetings] Emitted meeting:start event');
+        
+        if (organizationId && teamId) {
+          openMeetingScreen({
+            organization_id: organizationId,
+            team_id: teamId,
+            meeting_id: started.meeting_id,
+            title: instantTitle,
+            call_type: started.call_type || "video",
+          });
+        } else {
+          await onRefresh?.();
+          const liveMeeting = (meetings || []).find(
+            (m: any) => m.title === instantTitle && m.status === "ongoing",
+          );
+          if (liveMeeting) setMeetingToJoin(liveMeeting);
+        }
       }
     } finally {
       setIsBusy(false);
@@ -218,6 +283,17 @@ const MeetingsTab = ({
         meeting.id,
         meeting.call_type || "video",
       );
+      
+      // Emit socket event to notify team members
+      const socket = getSocket();
+      socket.emit('meeting:start', {
+        meeting_id: meeting.id,
+        organization_id: organizationId,
+        team_id: teamId,
+      });
+      
+      console.log('[Meetings] Emitted meeting:start event for scheduled meeting');
+      
       if (organizationId && teamId) {
         openMeetingScreen({
           organization_id: organizationId,
@@ -271,6 +347,36 @@ const MeetingsTab = ({
       day: "numeric",
       year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
     });
+  };
+
+  const handleAcceptIncomingCall = () => {
+    if (!incomingMeeting) return;
+    
+    // Close the incoming call modal
+    setIncomingMeeting(null);
+    
+    // Open the meeting room
+    if (organizationId && teamId) {
+      openMeetingScreen({
+        organization_id: incomingMeeting.organization_id,
+        team_id: incomingMeeting.team_id,
+        meeting_id: incomingMeeting.id,
+        title: incomingMeeting.title,
+        call_type: incomingMeeting.call_type || "video",
+      });
+    } else {
+      setMeetingToJoin({
+        id: incomingMeeting.id,
+        title: incomingMeeting.title,
+        call_type: incomingMeeting.call_type,
+        status: "ongoing",
+      });
+    }
+  };
+
+  const handleRejectIncomingCall = () => {
+    setIncomingMeeting(null);
+    showToast("Call declined", "info");
   };
 
   return (
@@ -616,15 +722,24 @@ const MeetingsTab = ({
         </div>
       )}
 
-      <MeetingRoomModal
+      <JitsiMeetingRoom
         open={!!meetingToJoin}
         meeting={meetingToJoin}
         organizationId={organizationId}
         teamId={teamId}
         currentUserId={currentUserId}
-        members={members}
+        currentUserName={currentUserName}
         onClose={() => setMeetingToJoin(null)}
         onRefresh={onRefresh}
+        onEndMeeting={onEndMeeting}
+      />
+      
+      {/* Incoming Call Modal */}
+      <IncomingMeetingModal
+        open={!!incomingMeeting}
+        meeting={incomingMeeting}
+        onAccept={handleAcceptIncomingCall}
+        onReject={handleRejectIncomingCall}
       />
       
       {/* Notification Permission Banner */}
@@ -645,6 +760,30 @@ const MeetingsTab = ({
             >
               Enable Notifications
             </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5">
+          <div className={`rounded-lg p-4 shadow-lg border-2 max-w-md ${
+            toast.type === 'success' ? 'bg-green-500/20 border-green-500 text-green-200' :
+            toast.type === 'error' ? 'bg-red-500/20 border-red-500 text-red-200' :
+            'bg-blue-500/20 border-blue-500 text-blue-200'
+          }`}>
+            <div className="flex items-start gap-3">
+              <Bell className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium">{toast.message}</p>
+              </div>
+              <button
+                onClick={() => setToast(null)}
+                className="flex-shrink-0 hover:opacity-70 transition-opacity"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

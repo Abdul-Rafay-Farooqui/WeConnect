@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Jitsi - Simple</title>
+    <script src="https://meet.jit.si/external_api.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .controls {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        input {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background: #333;
+            color: white;
+            font-size: 14px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #00a884;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00ba95;
+        }
+        #jitsi-container {
+            width: 100%;
+            height: 600px;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .info {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .success {
+            color: #00ff00;
+        }
+        .error {
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Jitsi Meet - Simple Test</h1>
+        
+        <div class="controls">
+            <h2>Test Configuration</h2>
+            <div>
+                <label>Room Name: </label>
+                <input type="text" id="roomName" value="test-room-123" style="width: 300px;">
+            </div>
+            <div>
+                <label>Your Name: </label>
+                <input type="text" id="userName" value="Test User" style="width: 300px;">
+            </div>
+            <div style="margin-top: 10px;">
+                <button onclick="startMeeting()">Start Meeting</button>
+                <button onclick="endMeeting()">End Meeting</button>
+            </div>
+        </div>
+
+        <div id="jitsi-container"></div>
+
+        <div class="info">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Enter a room name (or use default: "test-room-123")</li>
+                <li>Enter your name</li>
+                <li>Click "Start Meeting"</li>
+                <li>Open this page in another browser/tab</li>
+                <li>Use the SAME room name</li>
+                <li>Click "Start Meeting"</li>
+                <li>Both users should see each other!</li>
+            </ol>
+            
+            <h3>Status:</h3>
+            <div id="status">Not started</div>
+            
+            <h3>Console Logs:</h3>
+            <div id="logs" style="background: #000; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <script>
+        let api = null;
+
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'success' ? '#00ff00' : type === 'error' ? '#ff0000' : '#00aaff';
+            logsDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = type;
+            statusDiv.textContent = message;
+        }
+
+        function startMeeting() {
+            const roomName = document.getElementById('roomName').value.trim();
+            const userName = document.getElementById('userName').value.trim();
+
+            if (!roomName) {
+                alert('Please enter a room name');
+                return;
+            }
+
+            if (api) {
+                log('Meeting already started. End it first.', 'error');
+                return;
+            }
+
+            log('Starting meeting...', 'info');
+            log(`Room: ${roomName}`, 'info');
+            log(`User: ${userName}`, 'info');
+            updateStatus('Loading Jitsi...', 'info');
+
+            try {
+                const domain = 'meet.jit.si';
+                const options = {
+                    roomName: roomName,
+                    width: '100%',
+                    height: '100%',
+                    parentNode: document.getElementById('jitsi-container'),
+                    configOverwrite: {
+                        startWithAudioMuted: false,
+                        startWithVideoMuted: false,
+                        enableWelcomePage: false,
+                        prejoinPageEnabled: false,
+                    },
+                    interfaceConfigOverwrite: {
+                        TOOLBAR_BUTTONS: [
+                            'microphone',
+                            'camera',
+                            'desktop',
+                            'fullscreen',
+                            'hangup',
+                            'chat',
+                            'raisehand',
+                            'tileview',
+                        ],
+                        SHOW_JITSI_WATERMARK: false,
+                    },
+                    userInfo: {
+                        displayName: userName,
+                    }
+                };
+
+                log('Initializing Jitsi API...', 'info');
+                api = new JitsiMeetExternalAPI(domain, options);
+
+                api.addEventListener('videoConferenceJoined', (data) => {
+                    log('✅ Successfully joined conference!', 'success');
+                    log(`Room ID: ${data.roomName}`, 'success');
+                    updateStatus('✅ In Meeting', 'success');
+                });
+
+                api.addEventListener('videoConferenceLeft', () => {
+                    log('Left conference', 'info');
+                    updateStatus('Left meeting', 'info');
+                    api = null;
+                });
+
+                api.addEventListener('participantJoined', (data) => {
+                    log(`👤 Participant joined: ${data.displayName || 'Unknown'}`, 'success');
+                });
+
+                api.addEventListener('participantLeft', (data) => {
+                    log(`👤 Participant left: ${data.displayName || 'Unknown'}`, 'info');
+                });
+
+                api.addEventListener('readyToClose', () => {
+                    log('Ready to close', 'info');
+                    endMeeting();
+                });
+
+                api.addEventListener('errorOccurred', (error) => {
+                    log(`❌ Error: ${JSON.stringify(error)}`, 'error');
+                    updateStatus('❌ Error occurred', 'error');
+                });
+
+            } catch (error) {
+                log(`❌ Failed to start: ${error.message}`, 'error');
+                updateStatus('❌ Failed to start', 'error');
+                api = null;
+            }
+        }
+
+        function endMeeting() {
+            if (api) {
+                log('Ending meeting...', 'info');
+                api.dispose();
+                api = null;
+                updateStatus('Meeting ended', 'info');
+            } else {
+                log('No active meeting', 'error');
+            }
+        }
+
+        // Log when page loads
+        window.onload = () => {
+            log('Page loaded. Ready to start meeting.', 'success');
+            if (typeof JitsiMeetExternalAPI !== 'undefined') {
+                log('✅ Jitsi API loaded successfully', 'success');
+            } else {
+                log('❌ Jitsi API not loaded', 'error');
+            }
+        };
+    </script>
+</body>
+</html>

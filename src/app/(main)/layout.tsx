@@ -9,7 +9,7 @@ import ForwardMessageModal from "@/src/components/chat/ForwardMessageModal";
 import DeleteMessageModal from "@/src/components/chat/DeleteMessageModal";
 import LockChatModal from "@/src/components/layout/LockChatModal";
 import MeetingStartBanner from "@/src/components/layout/MeetingStartBanner";
-import MeetingRoomModal from "@/src/components/organization/tabs/MeetingRoomModal";
+import JitsiMeetingRoom from "@/src/components/organization/tabs/JitsiMeetingRoom";
 import OrgView from "@/src/components/organization/OrgView";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { MessageCircle, Building2 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { OrganizationAPI } from "@/lib/api/organization";
 
 const CallModal = dynamic(() => import("@/src/components/calls/CallModal"), {
   ssr: false,
@@ -114,7 +115,7 @@ export default function MainLayout({
       />
 
       {activeMeetingScreen && user?.id && (
-        <MeetingRoomModal
+        <JitsiMeetingRoom
           open={!!activeMeetingScreen}
           meeting={{
             id: activeMeetingScreen.meeting_id,
@@ -124,8 +125,19 @@ export default function MainLayout({
           organizationId={activeMeetingScreen.organization_id}
           teamId={activeMeetingScreen.team_id}
           currentUserId={user.id}
-          members={[]}
+          currentUserName={profile?.name || "User"}
           onClose={closeMeetingScreen}
+          onEndMeeting={async (meetingId: string) => {
+            try {
+              await OrganizationAPI.endMeeting(
+                activeMeetingScreen.organization_id,
+                activeMeetingScreen.team_id,
+                meetingId
+              );
+            } catch (error) {
+              console.error('[Meeting] Failed to end meeting:', error);
+            }
+          }}
         />
       )}
     </div>
