@@ -13,21 +13,18 @@ import {
   CreateTeamModal,
   DeleteOrgModal,
   DeleteTeamModal,
+  EditOrgModal,
+  EditTeamModal,
 } from "./OrgModals";
 import OrganizationSidebar from "./OrganizationSidebar";
 import TeamModals from "./TeamModals";
 import TeamTabContent from "./TeamTabContent";
 import TeamWorkspaceHeader from "./TeamWorkspaceHeader";
-import WorkspaceCommandBar from "./WorkspaceCommandBar";
 import { teamData as defaultTeamData } from "./constants";
 
 const OrgView = ({ 
-  presence = "available", 
-  presenceOptions = [] as any[],
   onOrgChange,
 }: {
-  presence?: string;
-  presenceOptions?: any[];
   onOrgChange?: (orgId: string | null) => void;
 }) => {
   const currentUser = useAuthStore((s) => s.user);
@@ -54,7 +51,6 @@ const OrgView = ({
   const [activeTab, setActiveTab] = useState("chat");
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
-  const [commandBarQuery, setCommandBarQuery] = useState("");
   const [orgAttendance, setOrgAttendance] = useState<any[]>([]);
   const [orgPraise, setOrgPraise] = useState<any[]>([]);
   const [orgCalendar, setOrgCalendar] = useState<any[]>([]);
@@ -62,7 +58,9 @@ const OrgView = ({
 
   // ── Modal visibility ──────────────────────────────────────────────────────
   const [showCreateOrg, setShowCreateOrg] = useState(false);
+  const [showEditOrg, setShowEditOrg] = useState(false);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [showEditTeam, setShowEditTeam] = useState(false);
   const [showAddOrgMembers, setShowAddOrgMembers] = useState(false);
   const [showAddTeamMembers, setShowAddTeamMembers] = useState(false);
   const [showDeleteTeam, setShowDeleteTeam] = useState(false);
@@ -78,16 +76,22 @@ const OrgView = ({
 
   /**
    * True if the current user is the admin/creator of the SELECTED ORGANIZATION.
-   * We check created_by, owner_id, admin_id at the org level.
-   * Fallback: if uid is set and no creator info exists, we assume they are admin
-   * (since they can only see orgs they belong to).
+   * We check the current_user_role from the organization membership data.
    */
   const isOrgAdmin = (() => {
     if (!uid || !selectedOrgObj) return false;
     const o = selectedOrgObj as any;
+    
+    // Check current_user_role from membership
+    if (o.current_user_role) {
+      return ['owner', 'admin', 'manager'].includes(o.current_user_role);
+    }
+    
+    // Fallback to checking creator fields
     if (o.created_by) return o.created_by === uid;
     if (o.owner_id) return o.owner_id === uid;
     if (o.admin_id) return o.admin_id === uid;
+    
     // No creator field → grant delete to all for now (backend will enforce)
     return true;
   })();
@@ -99,11 +103,24 @@ const OrgView = ({
   const isTeamAdmin = (() => {
     if (!uid || !selectedTeam) return false;
     const t = selectedTeam as any;
-    if (t.created_by) return t.created_by === uid;
-    if (t.owner_id) return t.owner_id === uid;
-    if (t.admin_id) return t.admin_id === uid;
-    if (t.creator_id) return t.creator_id === uid;
-    // No creator field on team → fall back to org-admin check
+    
+    // Check current_user_role from team membership (added by backend)
+    if (t.current_user_role === 'lead') return true;
+    
+    // Check if user is team lead from team summary
+    if (t.lead_user_id === uid) return true;
+    
+    // Check current user's role in team members data (from workspace)
+    const currentMember = teamData?.members?.find((m: any) => m.id === uid);
+    if (currentMember?.role === 'lead') return true;
+    
+    // Fallback to checking creator fields
+    if (t.created_by === uid) return true;
+    if (t.owner_id === uid) return true;
+    if (t.admin_id === uid) return true;
+    if (t.creator_id === uid) return true;
+    
+    // Fall back to org-admin check (org admins can manage all teams)
     return isOrgAdmin;
   })();
 
@@ -248,17 +265,28 @@ const OrgView = ({
   }, [selectedOrg, onOrgChange]);
 
   // ── Create Organization ───────────────────────────────────────────────────
-  const handleCreateOrganization = async (name: string, slug: string) => {
+  const handleCreateOrganization = async (name: string, slug: string, description: string, logoUrl?: string) => {
     setError("");
     const created = await OrganizationAPI.createOrganization({
       name,
       ...(slug ? { slug } : {}),
+      ...(description ? { description } : {}),
+      ...(logoUrl ? { logo_url: logoUrl } : {}),
     });
     await loadOrganizations();
     if (created?.id) {
       setSelectedOrg(created.id);
       await loadOrganizationTeams(created.id, true);
     }
+  };
+
+  // ── Update Organization ───────────────────────────────────────────────────
+  const handleUpdateOrganization = async (data: { name: string; slug: string; description: string; logo_url?: string; website_url?: string }) => {
+    if (!selectedOrg) throw new Error("No organization selected");
+    setError("");
+    await OrganizationAPI.updateOrganization(selectedOrg, data);
+    await loadOrganizations();
+    await loadOrganizationTeams(selectedOrg, true);
   };
 
   // ── Delete Organization ───────────────────────────────────────────────────
@@ -289,6 +317,15 @@ const OrgView = ({
       });
   };
 
+  // ── Update Team ───────────────────────────────────────────────────────────
+  const handleUpdateTeam = async (data: { name: string; description: string; visibility: 'organization' | 'private' }) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error("No team selected");
+    setError("");
+    await OrganizationAPI.updateTeam(selectedOrg, selectedTeam.id, data);
+    await loadOrganizationTeams(selectedOrg, true);
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
   // ── Delete Team ───────────────────────────────────────────────────────────
   const handleDeleteTeam = async () => {
     if (!selectedOrg || !selectedTeam?.id) throw new Error("No team selected");
@@ -304,6 +341,18 @@ const OrgView = ({
     if (!selectedOrg) throw new Error("No organization selected");
     setError("");
     await OrganizationAPI.removeOrgMember(selectedOrg, userId);
+    await loadOrganizationTeams(selectedOrg, true);
+  };
+
+  // ── Update Org Member Role ────────────────────────────────────────────────
+  const handleUpdateOrgMemberRole = async (userId: string, newRole: string) => {
+    if (!selectedOrg) throw new Error("No organization selected");
+    setError("");
+    await OrganizationAPI.updateOrgMemberRole(
+      selectedOrg,
+      userId,
+      newRole as "owner" | "admin" | "manager" | "member" | "guest",
+    );
     await loadOrganizationTeams(selectedOrg, true);
   };
 
@@ -550,6 +599,20 @@ const OrgView = ({
     );
     await loadTeamWorkspace(selectedOrg, selectedTeam.id);
   };
+
+  // ── Update Team Member Role ───────────────────────────────────────────────
+  const handleUpdateTeamMemberRole = async (memberId: string, newRole: string) => {
+    if (!selectedOrg || !selectedTeam?.id) throw new Error("No team selected");
+    setError("");
+    await OrganizationAPI.updateTeamMemberRole(
+      selectedOrg,
+      selectedTeam.id,
+      memberId,
+      newRole as "lead" | "member" | "guest",
+    );
+    await loadTeamWorkspace(selectedOrg, selectedTeam.id);
+  };
+
   const handleAddTeamMembers = async (memberIds: string[]) => {
     if (!selectedOrg || !selectedTeam?.id)
       throw new Error("Select a team first");
@@ -581,6 +644,7 @@ const OrgView = ({
         error={error}
         onRetry={loadOrganizations}
         onCreateOrganization={() => setShowCreateOrg(true)}
+        onEditOrganization={() => setShowEditOrg(true)}
         onCreateTeam={() => {
           if (!selectedOrg) {
             setError("Select an organization first");
@@ -596,10 +660,16 @@ const OrgView = ({
           setShowAddOrgMembers(true);
         }}
         onDeleteOrg={() => setShowDeleteOrg(true)}
+        onEditTeam={(team: any) => {
+          setSelectedTeam(team);
+          setShowEditTeam(true);
+        }}
         onAddTeamMembers={(team: any) => {
           setSelectedTeam(team);
           setShowAddTeamMembers(true);
         }}
+        isOrgAdmin={isOrgAdmin}
+        isTeamAdmin={isTeamAdmin}
         isOrgAdmin={isOrgAdmin}
       />
 
@@ -612,12 +682,6 @@ const OrgView = ({
 
         {selectedTeam ? (
           <>
-            <WorkspaceCommandBar
-              presence={presence}
-              presenceOptions={presenceOptions}
-              commandBarQuery={commandBarQuery}
-              setCommandBarQuery={setCommandBarQuery}
-            />
             <TeamWorkspaceHeader
               selectedTeam={selectedTeam.name}
               activeTab={activeTab}
@@ -651,6 +715,7 @@ const OrgView = ({
                   "Someone"
                 }
                 onRemoveTeamMember={handleRemoveTeamMember}
+                onUpdateTeamMemberRole={handleUpdateTeamMemberRole}
                 onAddActivity={handleAddActivity}
                 onDeleteActivity={handleDeleteActivity}
                 onRefreshWorkspace={async () => {
@@ -696,6 +761,7 @@ const OrgView = ({
               setShowAddOrgMembers(true);
             }}
             onRemoveMember={handleRemoveOrgMember}
+            onUpdateMemberRole={handleUpdateOrgMemberRole}
             onClockIn={handleOrgClockIn}
             onClockOut={handleOrgClockOut}
             onSendPraise={handleSendOrgPraise}
@@ -749,6 +815,12 @@ const OrgView = ({
         onClose={() => setShowCreateOrg(false)}
         onSubmit={handleCreateOrganization}
       />
+      <EditOrgModal
+        open={showEditOrg}
+        onClose={() => setShowEditOrg(false)}
+        onSubmit={handleUpdateOrganization}
+        organization={selectedOrgObj}
+      />
       <DeleteOrgModal
         open={showDeleteOrg}
         onClose={() => setShowDeleteOrg(false)}
@@ -760,6 +832,12 @@ const OrgView = ({
         onClose={() => setShowCreateTeam(false)}
         onSubmit={handleCreateTeam}
         orgName={selectedOrgObj?.name}
+      />
+      <EditTeamModal
+        open={showEditTeam}
+        onClose={() => setShowEditTeam(false)}
+        onSubmit={handleUpdateTeam}
+        team={selectedTeam}
       />
       <DeleteTeamModal
         open={showDeleteTeam}

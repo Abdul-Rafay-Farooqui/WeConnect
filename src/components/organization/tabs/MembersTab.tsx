@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Users, UserMinus } from 'lucide-react';
+import RoleSelector from '../RoleSelector';
 
 interface Member {
   id: string;
@@ -17,10 +18,17 @@ interface MembersTabProps {
   isAdmin?: boolean;
   currentUserId?: string;
   onRemove?: (memberId: string) => Promise<void>;
+  onUpdateRole?: (memberId: string, newRole: string) => Promise<void>;
 }
 
-const MembersTab = ({ members = [], isAdmin, currentUserId, onRemove }: MembersTabProps) => {
+const MembersTab = ({ members = [], isAdmin, currentUserId, onRemove, onUpdateRole }: MembersTabProps) => {
   const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const teamRoles = [
+    { value: 'lead', label: 'Lead', color: 'bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/30' },
+    { value: 'member', label: 'Member', color: 'bg-[#2a3942] text-[#8696a0]' },
+    { value: 'guest', label: 'Guest', color: 'bg-purple-500/15 text-purple-400 border border-purple-500/30' },
+  ];
 
   const handleRemove = async (member: Member) => {
     if (!onRemove) return;
@@ -30,6 +38,11 @@ const MembersTab = ({ members = [], isAdmin, currentUserId, onRemove }: MembersT
     } finally {
       setRemovingId(null);
     }
+  };
+
+  const handleRoleChange = async (memberId: string, newRole: string) => {
+    if (!onUpdateRole) return;
+    await onUpdateRole(memberId, newRole);
   };
 
   if (!members.length) {
@@ -80,14 +93,14 @@ const MembersTab = ({ members = [], isAdmin, currentUserId, onRemove }: MembersT
               {member.phone && <p className="text-[#8696a0] text-xs truncate">{member.phone}</p>}
             </div>
 
-            {/* Role badge */}
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${
-              member.role === 'lead'
-                ? 'bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/30'
-                : 'bg-[#2a3942] text-[#8696a0]'
-            }`}>
-              {member.role === 'lead' ? 'Lead' : 'Member'}
-            </span>
+            {/* Role selector */}
+            <RoleSelector
+              currentRole={member.role}
+              availableRoles={teamRoles}
+              onRoleChange={(newRole) => handleRoleChange(member.id, newRole)}
+              disabled={isSelf}
+              canEdit={isAdmin && !isSelf}
+            />
 
             {/* Remove button — admin only, not self */}
             {canRemove && (

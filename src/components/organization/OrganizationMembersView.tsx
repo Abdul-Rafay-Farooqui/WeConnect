@@ -5,6 +5,7 @@ import { UserMinus, UserPlus, Users } from 'lucide-react';
 import AttendanceTab from './tabs/AttendanceTab';
 import CalendarTab from './tabs/CalendarTab';
 import PraiseTab from './tabs/PraiseTab';
+import RoleSelector from './RoleSelector';
 
 interface OrgMember {
   id: string;
@@ -40,6 +41,7 @@ interface OrganizationMembersViewProps {
   currentUserId?: string;
   onAddMembers?: () => void;
   onRemoveMember?: (userId: string) => Promise<void>;
+  onUpdateMemberRole?: (userId: string, newRole: string) => Promise<void>;
   onClockIn?: () => Promise<void>;
   onClockOut?: () => Promise<void>;
   onFetchAttendanceHistory?: (startDate: string, endDate: string) => Promise<void>;
@@ -69,6 +71,7 @@ const OrganizationMembersView = ({
   currentUserId,
   onAddMembers,
   onRemoveMember,
+  onUpdateMemberRole,
   onClockIn,
   onClockOut,
   onFetchAttendanceHistory,
@@ -80,6 +83,14 @@ const OrganizationMembersView = ({
   const [activeTab, setActiveTab] = useState<'members' | 'attendance' | 'praise' | 'calendar'>('members');
   const [removingId, setRemovingId] = useState<string | null>(null);
 
+  const orgRoles = [
+    { value: 'owner', label: 'Owner', color: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30' },
+    { value: 'admin', label: 'Admin', color: 'bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/30' },
+    { value: 'manager', label: 'Manager', color: 'bg-blue-500/15 text-blue-400 border border-blue-500/30' },
+    { value: 'member', label: 'Member', color: 'bg-[#2a3942] text-[#8696a0]' },
+    { value: 'guest', label: 'Guest', color: 'bg-purple-500/15 text-purple-400 border border-purple-500/30' },
+  ];
+
   const handleRemove = async (userId: string) => {
     if (!onRemoveMember) return;
     setRemovingId(userId);
@@ -88,6 +99,11 @@ const OrganizationMembersView = ({
     } finally {
       setRemovingId(null);
     }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    if (!onUpdateMemberRole) return;
+    await onUpdateMemberRole(userId, newRole);
   };
 
   return (
@@ -215,16 +231,14 @@ const OrganizationMembersView = ({
                         {m.phone && <p className="text-[#8696a0] text-xs">{m.phone}</p>}
                       </div>
 
-                      {/* Role badge */}
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 capitalize ${
-                        m.role === 'owner'
-                          ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
-                          : m.role === 'admin'
-                          ? 'bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/30'
-                          : 'bg-[#2a3942] text-[#8696a0]'
-                      }`}>
-                        {m.role}
-                      </span>
+                      {/* Role selector */}
+                      <RoleSelector
+                        currentRole={m.role}
+                        availableRoles={orgRoles}
+                        onRoleChange={(newRole) => handleRoleChange(m.user_id, newRole)}
+                        disabled={isSelf || m.role === 'owner'}
+                        canEdit={isOrgAdmin && !isSelf && m.role !== 'owner'}
+                      />
 
                       {/* Remove button — admin only, not self, not owner */}
                       {canRemove && (

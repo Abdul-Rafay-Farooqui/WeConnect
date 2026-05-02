@@ -19,6 +19,7 @@ const TeamTabContent = ({
   currentUserId,
   currentUserName,
   onRemoveTeamMember,
+  onUpdateTeamMemberRole,
   onAddActivity,
   onDeleteActivity,
   onRefreshWorkspace,
@@ -55,6 +56,7 @@ const TeamTabContent = ({
         isAdmin={isTeamAdmin}
         currentUserId={currentUserId}
         onRemove={onRemoveTeamMember}
+        onUpdateRole={onUpdateTeamMemberRole}
       />
     );
   if (activeTab === "activity")

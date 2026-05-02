@@ -6,8 +6,10 @@ export const OrganizationAPI = {
   listOrganizations: () => api.get("/organizations").then((r) => r.data),
   getOrganization: (organizationId: string) =>
     api.get(`/organizations/${organizationId}`).then((r) => r.data),
-  createOrganization: (payload: { name: string; slug?: string }) =>
+  createOrganization: (payload: { name: string; slug?: string; description?: string; logo_url?: string }) =>
     api.post("/organizations", payload).then((r) => r.data),
+  updateOrganization: (organizationId: string, payload: { name?: string; slug?: string; description?: string; logo_url?: string; website_url?: string }) =>
+    api.patch(`/organizations/${organizationId}`, payload).then((r) => r.data),
   deleteOrganization: (organizationId: string) =>
     api.delete(`/organizations/${organizationId}`).then((r) => r.data),
   addOrganizationMembers: (organizationId: string, member_ids: string[]) =>
@@ -20,6 +22,14 @@ export const OrganizationAPI = {
   ) =>
     api
       .post(`/organizations/${organizationId}/teams`, payload)
+      .then((r) => r.data),
+  updateTeam: (
+    organizationId: string,
+    teamId: string,
+    payload: { name?: string; description?: string; visibility?: 'organization' | 'private' },
+  ) =>
+    api
+      .patch(`/organizations/${organizationId}/teams/${teamId}`, payload)
       .then((r) => r.data),
   addTeamMembers: (
     organizationId: string,
@@ -277,6 +287,28 @@ export const OrganizationAPI = {
   getOrgPraise: (organizationId: string) =>
     api.get(`/organizations/${organizationId}/praise`).then((r) => r.data),
   
+  // Role management
+  updateOrgMemberRole: (
+    organizationId: string,
+    memberId: string,
+    role: "owner" | "admin" | "manager" | "member" | "guest",
+  ) =>
+    api
+      .patch(`/organizations/${organizationId}/members/${memberId}`, { role })
+      .then((r) => r.data),
+  updateTeamMemberRole: (
+    organizationId: string,
+    teamId: string,
+    memberId: string,
+    role: "lead" | "member" | "guest",
+  ) =>
+    api
+      .patch(
+        `/organizations/${organizationId}/teams/${teamId}/members/${memberId}`,
+        { role },
+      )
+      .then((r) => r.data),
+
   // Notifications
   getNotifications: (organizationId: string) => {
     console.log('[API] Getting notifications for org:', organizationId);

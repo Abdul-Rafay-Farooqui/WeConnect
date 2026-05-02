@@ -1,3 +1,5 @@
+import { Edit2, Trash2, UserPlus, Building2 } from 'lucide-react';
+
 const OrganizationSidebar = ({
   organizations,
   selectedOrg,
@@ -8,11 +10,14 @@ const OrganizationSidebar = ({
   error,
   onRetry,
   onCreateOrganization,
+  onEditOrganization,
   onCreateTeam,
   onAddOrgMembers,
   onAddTeamMembers,
   onDeleteOrg,
+  onEditTeam,
   isOrgAdmin,
+  isTeamAdmin,
 }: any) => (
   <div className="w-[300px] bg-[#111b21] border-r border-[#222d34] flex flex-col">
     {/* Header */}
@@ -24,7 +29,8 @@ const OrganizationSidebar = ({
           onClick={onCreateOrganization}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#00a884]/15 text-[#00a884] border border-[#00a884]/30 hover:bg-[#00a884]/25 transition-all"
         >
-          🏢 New Org
+          <Building2 className="w-3.5 h-3.5" />
+          New Org
         </button>
         <button
           onClick={onCreateTeam}
@@ -60,7 +66,9 @@ const OrganizationSidebar = ({
     <div className="overflow-y-auto custom-scrollbar flex-1">
       {organizations.length === 0 && !isLoading && (
         <div className="p-6 text-center">
-          <p className="text-4xl mb-2">🏢</p>
+          <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-[#1e2a30] flex items-center justify-center">
+            <Building2 className="w-8 h-8 text-[#8696a0]" />
+          </div>
           <p className="text-[#8696a0] text-sm">No organizations yet.</p>
           <button
             onClick={onCreateOrganization}
@@ -83,7 +91,15 @@ const OrganizationSidebar = ({
                 className="flex-1 text-left px-4 py-3 flex items-center gap-2"
                 onClick={() => setSelectedOrg(org.id)}
               >
-                <span className="text-xl">{org.icon || '🏢'}</span>
+                {org.logo_url ? (
+                  <img 
+                    src={org.logo_url} 
+                    alt={org.name} 
+                    className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <span className="text-xl">{org.icon || '🏢'}</span>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-[#e9edef] text-sm font-semibold truncate">{org.name}</p>
                   {(org.teams?.length ?? 0) > 0 && (
@@ -99,15 +115,24 @@ const OrganizationSidebar = ({
                 )}
               </button>
 
-              {/* Delete org button — only shown for admin when org is selected */}
+              {/* Edit and Delete org buttons — only shown for admin when org is selected */}
               {isSelected && isOrgAdmin && (
-                <button
-                  onClick={onDeleteOrg}
-                  title="Delete organization (admin only)"
-                  className="mr-3 p-1.5 rounded-lg text-red-500/50 hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
-                >
-                  🗑️
-                </button>
+                <div className="flex items-center gap-1 mr-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onEditOrganization?.(); }}
+                    title="Edit organization"
+                    className="p-1.5 rounded-lg text-[#8696a0] hover:text-[#00a884] hover:bg-[#00a884]/10 transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDeleteOrg(); }}
+                    title="Delete organization"
+                    className="p-1.5 rounded-lg text-red-500/50 hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
 
@@ -132,12 +157,21 @@ const OrganizationSidebar = ({
                     <span className="text-sm">👥</span>
                     <span className="truncate flex-1">{teamName}</span>
                   </button>
+                  {isTeamAdmin && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedTeam(fullTeam); onEditTeam?.(fullTeam); }}
+                      title="Edit team"
+                      className="mr-1 p-1 rounded text-[#8696a0] hover:text-[#00a884] hover:bg-[#00a884]/10 transition-all opacity-0 group-hover/team:opacity-100 text-xs"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); setSelectedTeam(fullTeam); onAddTeamMembers?.(fullTeam); }}
                     title="Add members to team"
                     className="mr-2 p-1 rounded text-[#8696a0] hover:text-[#00a884] hover:bg-[#00a884]/10 transition-all opacity-0 group-hover/team:opacity-100 text-xs"
                   >
-                    ➕
+                    <UserPlus className="w-3.5 h-3.5" />
                   </button>
                 </div>
               );

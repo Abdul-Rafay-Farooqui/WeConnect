@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { UsersAPI } from '@/lib/api/endpoints';
+import { Edit2 } from 'lucide-react';
 
 /* ────────────────────────────────────────────────────────
    Types
@@ -38,10 +39,14 @@ const ModalCard = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-const ModalTitle = ({ icon, title, subtitle }: { icon: string; title: string; subtitle?: string }) => (
+const ModalTitle = ({ icon, title, subtitle }: { icon: string | React.ReactNode; title: string; subtitle?: string }) => (
   <div className="mb-6">
     <div className="flex items-center gap-3 mb-1">
-      <span className="text-2xl">{icon}</span>
+      {typeof icon === 'string' ? (
+        <span className="text-2xl">{icon}</span>
+      ) : (
+        <div className="text-[#00a884]">{icon}</div>
+      )}
       <h3 className="text-[#e9edef] text-xl font-bold tracking-tight">{title}</h3>
     </div>
     {subtitle && <p className="text-[#8696a0] text-sm ml-10">{subtitle}</p>}
@@ -302,26 +307,73 @@ export const CreateOrgModal = ({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (name: string, slug: string, description: string) => Promise<void>;
+  onSubmit: (name: string, slug: string, description: string, logoUrl?: string) => Promise<void>;
 }) => {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSlug(name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''));
   }, [name]);
 
-  const reset = () => { setName(''); setSlug(''); setDescription(''); setErr(''); setLoading(false); };
+  const reset = () => { 
+    setName(''); 
+    setSlug(''); 
+    setDescription(''); 
+    setLogoUrl('');
+    setLogoPreview(null);
+    setErr(''); 
+    setLoading(false); 
+  };
+  
   const handleClose = () => { reset(); onClose(); };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setErr('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErr('Image size must be less than 5MB');
+      return;
+    }
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      setLogoPreview(result);
+      setLogoUrl(result); // For now, use base64. In production, upload to storage
+    };
+    reader.readAsDataURL(file);
+    setErr('');
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoUrl('');
+    setLogoPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async () => {
     if (!name.trim()) { setErr('Organization name is required.'); return; }
     setLoading(true); setErr('');
     try {
-      await onSubmit(name.trim(), slug.trim(), description.trim());
+      await onSubmit(name.trim(), slug.trim(), description.trim(), logoUrl || undefined);
       reset(); onClose();
     } catch (e: any) {
       setErr(e?.message || 'Failed to create organization.');
@@ -333,6 +385,50 @@ export const CreateOrgModal = ({
     <Backdrop onClose={handleClose}>
       <ModalCard>
         <ModalTitle icon="🏢" title="Create Organization" subtitle="Set up a new workspace for your team" />
+        
+        {/* Logo Upload */}
+        <div className="mb-4">
+          <label className="block text-[#8696a0] text-sm mb-2">Organization Logo</label>
+          <div className="flex items-center gap-4">
+            {logoPreview ? (
+              <div className="relative">
+                <img 
+                  src={logoPreview} 
+                  alt="Logo preview" 
+                  className="w-20 h-20 rounded-lg object-cover border-2 border-[#2a3942]"
+                />
+                <button
+                  onClick={handleRemoveLogo}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="w-20 h-20 rounded-lg bg-[#1e2a30] border-2 border-dashed border-[#2a3942] flex items-center justify-center text-3xl">
+                🏢
+              </div>
+            )}
+            <div className="flex-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="logo-upload"
+              />
+              <label
+                htmlFor="logo-upload"
+                className="inline-block px-4 py-2 bg-[#2a3942] text-[#e9edef] text-sm rounded-lg cursor-pointer hover:bg-[#374955] transition-colors"
+              >
+                Choose Image
+              </label>
+              <p className="text-[#8696a0] text-xs mt-1">PNG, JPG up to 5MB</p>
+            </div>
+          </div>
+        </div>
+
         <Field label="Organization Name *" value={name} onChange={setName} placeholder="e.g. Acme Corp" autoFocus />
         <Field label="Slug" value={slug} onChange={setSlug} placeholder="acme-corp" hint="Used in URLs — auto-generated from the name" />
         <TextArea label="Description" value={description} onChange={setDescription} placeholder="What does this organization do?" />
@@ -705,6 +801,266 @@ export const DeleteOrgModal = ({
           {err && <p className="text-red-400 text-xs mt-1">{err}</p>}
         </div>
         <Actions onCancel={handleClose} onConfirm={handleDelete} confirmLabel="Delete Organization" loading={loading} danger />
+      </ModalCard>
+    </Backdrop>
+  );
+};
+
+/* ────────────────────────────────────────────────────────
+   7. Edit Organization Modal
+──────────────────────────────────────────────────────── */
+export const EditOrgModal = ({
+  open,
+  onClose,
+  onSubmit,
+  organization,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: { name: string; slug: string; description: string; logo_url?: string; website_url?: string }) => Promise<void>;
+  organization?: any;
+}) => {
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [description, setDescription] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (organization && open) {
+      setName(organization.name || '');
+      setSlug(organization.slug || '');
+      setDescription(organization.description || '');
+      setWebsiteUrl(organization.website_url || '');
+      setLogoUrl(organization.logo_url || '');
+      setLogoPreview(organization.logo_url || null);
+    }
+  }, [organization, open]);
+
+  const reset = () => { 
+    setName(''); 
+    setSlug(''); 
+    setDescription(''); 
+    setWebsiteUrl('');
+    setLogoUrl('');
+    setLogoPreview(null);
+    setErr(''); 
+    setLoading(false); 
+  };
+  
+  const handleClose = () => { reset(); onClose(); };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErr('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErr('Image size must be less than 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      setLogoPreview(result);
+      setLogoUrl(result);
+    };
+    reader.readAsDataURL(file);
+    setErr('');
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoUrl('');
+    setLogoPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setErr('Organization name is required.'); return; }
+    setLoading(true); setErr('');
+    try {
+      await onSubmit({
+        name: name.trim(),
+        slug: slug.trim(),
+        description: description.trim(),
+        logo_url: logoUrl || undefined,
+        website_url: websiteUrl.trim() || undefined,
+      });
+      reset(); onClose();
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to update organization.');
+    } finally { setLoading(false); }
+  };
+
+  if (!open) return null;
+  return (
+    <Backdrop onClose={handleClose}>
+      <ModalCard>
+        <ModalTitle icon={<Edit2 className="w-6 h-6" />} title="Edit Organization" subtitle="Update organization details" />
+        
+        {/* Logo Upload */}
+        <div className="mb-4">
+          <label className="block text-[#8696a0] text-sm mb-2">Organization Logo</label>
+          <div className="flex items-center gap-4">
+            {logoPreview ? (
+              <div className="relative">
+                <img 
+                  src={logoPreview} 
+                  alt="Logo preview" 
+                  className="w-20 h-20 rounded-lg object-cover border-2 border-[#2a3942]"
+                />
+                <button
+                  onClick={handleRemoveLogo}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="w-20 h-20 rounded-lg bg-[#1e2a30] border-2 border-dashed border-[#2a3942] flex items-center justify-center text-3xl">
+                🏢
+              </div>
+            )}
+            <div className="flex-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="edit-logo-upload"
+              />
+              <label
+                htmlFor="edit-logo-upload"
+                className="inline-block px-4 py-2 bg-[#2a3942] text-[#e9edef] text-sm rounded-lg cursor-pointer hover:bg-[#374955] transition-colors"
+              >
+                Change Image
+              </label>
+              <p className="text-[#8696a0] text-xs mt-1">PNG, JPG up to 5MB</p>
+            </div>
+          </div>
+        </div>
+
+        <Field label="Organization Name *" value={name} onChange={setName} placeholder="e.g. Acme Corp" autoFocus />
+        <Field label="Slug" value={slug} onChange={setSlug} placeholder="acme-corp" hint="Used in URLs" />
+        <Field label="Website URL" value={websiteUrl} onChange={setWebsiteUrl} placeholder="https://example.com" />
+        <TextArea label="Description" value={description} onChange={setDescription} placeholder="What does this organization do?" />
+        {err && <p className="text-red-400 text-sm mb-2">{err}</p>}
+        <Actions onCancel={handleClose} onConfirm={handleSubmit} confirmLabel="Save Changes" loading={loading} />
+      </ModalCard>
+    </Backdrop>
+  );
+};
+
+/* ────────────────────────────────────────────────────────
+   8. Edit Team Modal
+──────────────────────────────────────────────────────── */
+export const EditTeamModal = ({
+  open,
+  onClose,
+  onSubmit,
+  team,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: { name: string; description: string; visibility: 'organization' | 'private' }) => Promise<void>;
+  team?: any;
+}) => {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [visibility, setVisibility] = useState<'organization' | 'private'>('organization');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (team && open) {
+      setName(team.name || '');
+      setDescription(team.description || '');
+      setVisibility(team.visibility || 'organization');
+    }
+  }, [team, open]);
+
+  const reset = () => { 
+    setName(''); 
+    setDescription(''); 
+    setVisibility('organization');
+    setErr(''); 
+    setLoading(false); 
+  };
+  
+  const handleClose = () => { reset(); onClose(); };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setErr('Team name is required.'); return; }
+    setLoading(true); setErr('');
+    try {
+      await onSubmit({
+        name: name.trim(),
+        description: description.trim(),
+        visibility,
+      });
+      reset(); onClose();
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to update team.');
+    } finally { setLoading(false); }
+  };
+
+  if (!open) return null;
+  return (
+    <Backdrop onClose={handleClose}>
+      <ModalCard>
+        <ModalTitle icon={<Edit2 className="w-6 h-6" />} title="Edit Team" subtitle="Update team details" />
+        
+        <Field label="Team Name *" value={name} onChange={setName} placeholder="e.g. Engineering" autoFocus />
+        <TextArea label="Description" value={description} onChange={setDescription} placeholder="What does this team do?" />
+        
+        <div className="mb-4">
+          <label className="block text-[#8696a0] text-sm mb-2">Visibility</label>
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 p-3 rounded-lg bg-[#1e2a30] border border-[#2a3942] cursor-pointer hover:border-[#00a884]/30 transition-colors">
+              <input
+                type="radio"
+                name="visibility"
+                value="organization"
+                checked={visibility === 'organization'}
+                onChange={(e) => setVisibility(e.target.value as 'organization' | 'private')}
+                className="w-4 h-4 text-[#00a884] focus:ring-[#00a884]"
+              />
+              <div>
+                <p className="text-[#e9edef] text-sm font-medium">Organization</p>
+                <p className="text-[#8696a0] text-xs">All organization members can see this team</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 p-3 rounded-lg bg-[#1e2a30] border border-[#2a3942] cursor-pointer hover:border-[#00a884]/30 transition-colors">
+              <input
+                type="radio"
+                name="visibility"
+                value="private"
+                checked={visibility === 'private'}
+                onChange={(e) => setVisibility(e.target.value as 'organization' | 'private')}
+                className="w-4 h-4 text-[#00a884] focus:ring-[#00a884]"
+              />
+              <div>
+                <p className="text-[#e9edef] text-sm font-medium">Private</p>
+                <p className="text-[#8696a0] text-xs">Only team members can see this team</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {err && <p className="text-red-400 text-sm mb-2">{err}</p>}
+        <Actions onCancel={handleClose} onConfirm={handleSubmit} confirmLabel="Save Changes" loading={loading} />
       </ModalCard>
     </Backdrop>
   );
