@@ -125,7 +125,7 @@ export default function MainLayout({
           organizationId={activeMeetingScreen.organization_id}
           teamId={activeMeetingScreen.team_id}
           currentUserId={user.id}
-          currentUserName={profile?.name || "User"}
+          currentUserName={profile?.display_name || user?.email || "User"}
           onClose={closeMeetingScreen}
           onEndMeeting={async (meetingId: string) => {
             try {

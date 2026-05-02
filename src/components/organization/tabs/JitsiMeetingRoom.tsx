@@ -38,9 +38,17 @@ export default function JitsiMeetingRoom({
   const [isLoading, setIsLoading] = useState(true);
   const [hasLeft, setHasLeft] = useState(false);
   const [useIframe, setUseIframe] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Debug: Log the user name
+  useEffect(() => {
+    console.log('[JitsiMeetingRoom] currentUserName:', currentUserName);
+    console.log('[JitsiMeetingRoom] meeting:', meeting);
+    console.log('[JitsiMeetingRoom] useIframe:', useIframe);
+  }, [currentUserName, meeting, useIframe]);
 
   useEffect(() => {
-    if (!open || !meeting || hasLeft) return;
+    if (!open || !meeting || hasLeft || isInitialized) return;
 
     // Try to use External API, fallback to iframe if it fails
     const loadJitsiScript = () => {
@@ -64,11 +72,14 @@ export default function JitsiMeetingRoom({
         await loadJitsiScript();
 
         if (!containerRef.current) {
+          console.log('[Jitsi] Container not available, using iframe');
           setUseIframe(true);
           setIsLoading(false);
+          setIsInitialized(true);
           return;
         }
 
+        console.log('[Jitsi] Initializing External API');
         const domain = 'meet.jit.si';
         const options = {
           roomName: meeting.id,
@@ -76,17 +87,36 @@ export default function JitsiMeetingRoom({
           height: '100%',
           parentNode: containerRef.current,
           configOverwrite: {
-            prejoinPageEnabled: false,
+            prejoinPageEnabled: false, // Skip the prejoin page
+            prejoinConfig: {
+              enabled: false, // Also disable in prejoin config
+            },
             startWithAudioMuted: false,
             startWithVideoMuted: false,
+            requireDisplayName: false, // Don't require display name
+            disableProfile: true, // Disable profile editing
+            enableWelcomePage: false, // Disable welcome page
+            enableClosePage: false, // Disable close page
+            disableDeepLinking: true, // Disable deep linking
+          },
+          interfaceConfigOverwrite: {
+            DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+            SHOW_JITSI_WATERMARK: false,
+            MOBILE_APP_PROMO: false,
+            HIDE_INVITE_MORE_HEADER: true,
           },
           userInfo: {
             displayName: currentUserName || 'User',
+            email: '', // Optional: can add user email
           },
+          // JWT token would go here if using authenticated Jitsi
+          // jwt: 'your-jwt-token',
         };
 
         const api = new window.JitsiMeetExternalAPI(domain, options);
         jitsiApiRef.current = api;
+        setIsInitialized(true);
+        console.log('[Jitsi] External API initialized successfully');
 
         // Hide loading when ready
         api.addEventListener('videoConferenceJoined', () => {
@@ -129,6 +159,7 @@ export default function JitsiMeetingRoom({
         console.error('[Jitsi] Failed to initialize External API, falling back to iframe:', error);
         setUseIframe(true);
         setIsLoading(false);
+        setIsInitialized(true);
       }
     };
 
@@ -144,10 +175,11 @@ export default function JitsiMeetingRoom({
         jitsiApiRef.current = null;
       }
     };
-  }, [open, meeting, currentUserName, hasLeft, onClose, onRefresh, onEndMeeting]);
+  }, [open, meeting, currentUserName, hasLeft, isInitialized, onClose, onRefresh, onEndMeeting]);
 
   const handleManualClose = async () => {
     setHasLeft(true);
+    setIsInitialized(false); // Reset for next time
     
     // Dispose Jitsi API
     if (jitsiApiRef.current) {
@@ -177,7 +209,7 @@ export default function JitsiMeetingRoom({
 
   if (!open) return null;
 
-  const roomUrl = `https://meet.jit.si/${meeting?.id || 'test'}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&userInfo.displayName="${encodeURIComponent(currentUserName || 'User')}"`;
+  const roomUrl = `https://meet.jit.si/${meeting?.id || 'test'}#config.prejoinPageEnabled=false&config.requireDisplayName=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&userInfo.displayName="${encodeURIComponent(currentUserName || 'User')}"&userInfo.email=""`;
 
   return (
     <div className="fixed inset-0 z-[100] bg-[#0b141a] flex flex-col">
